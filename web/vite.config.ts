@@ -25,7 +25,7 @@ export default defineConfig({
     }),
   ],
   server: {
-    port: 12001,
+    port: 5173,
     proxy: {
       '/events': 'http://localhost:12001',
     },
