@@ -31,7 +31,7 @@
 │                                                  │
 └──────────────────────────────────────────────────┘
 
-开发：Vite :5173 ── proxy /events ──> Bun :3001
+开发：Vite :5173 ── proxy /events ──> Bun :12001
 ```
 
 - **Backend**：Bun.serve()，零依赖，SSE 推送 mock 数据 + 生产环境 serve 前端静态文件

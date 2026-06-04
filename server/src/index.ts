@@ -1,6 +1,6 @@
 import { generateSnapshot } from "./mock";
 
-const PORT = parseInt(process.env.PORT || "3001", 10);
+const PORT = parseInt(process.env.PORT || "12001", 10);
 
 // Determine web dist path for static file serving.
 // In Docker, the frontend dist is at /app/web/dist.
