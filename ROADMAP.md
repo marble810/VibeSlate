@@ -1,12 +1,13 @@
 # ROADMAP.md — Marble Panel
 
-## Now — Phase 1 骨架
+## Now — Phase 1 骨架 ✅
 
-- [ ] 初始化项目结构（server/ + web/）
-- [ ] Backend: Bun.serve + SSE + mock 随机数据
-- [ ] Frontend: Vite + Svelte 5 + bits-ui + SCSS
-- [ ] SSE 客户端连接，数据渲染到页面
-- [ ] Dockerfile + docker-compose（`oven/bun:1-slim` 基座）
+- [x] 初始化项目结构（server/ + web/）
+- [x] Backend: Bun.serve + SSE + mock 随机数据
+- [x] Frontend: Vite + Svelte 5 + bits-ui + SCSS
+- [x] SSE 客户端连接，数据渲染到页面
+- [x] Dockerfile + docker-compose（`oven/bun:1-slim` 基座）
+- [x] `bun run` scripts（dev / build / preview / docker）
 
 ## Phase 2 — UI 完善
 
