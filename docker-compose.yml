@@ -1,0 +1,7 @@
+services:
+  marble-panel:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - PORT=80

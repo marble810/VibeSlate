@@ -1,0 +1,5 @@
+{
+  "name": "marble-panel",
+  "private": true,
+  "workspaces": ["server", "web"]
+}
