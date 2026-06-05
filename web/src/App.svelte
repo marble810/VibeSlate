@@ -53,8 +53,8 @@
   .waiting {
     grid-column: 1 / -1;
     text-align: center;
-    padding: 3rem 1rem;
-    font-size: 1rem;
+    padding: var(--space-4xl) var(--space-xl);
+    font-size: var(--text-3xl);
     color: var(--text-muted);
     font-family: var(--font-mono);
   }
@@ -64,9 +64,9 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 1.5rem 0;
+    padding: var(--space-2xl) 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--text-2xl);
     font-family: var(--font-mono);
     background: var(--surface);
     border: 1px solid var(--border);

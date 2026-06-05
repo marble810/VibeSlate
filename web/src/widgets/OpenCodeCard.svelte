@@ -75,45 +75,45 @@
   .windows {
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: var(--card-gap);
   }
 
   .window {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: var(--space-xs);
   }
 
   .window-header {
     display: flex;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: var(--space-md);
   }
 
   .window-label {
-    font-size: 0.7rem;
+    font-size: var(--text-md);
     color: var(--text);
   }
 
   .window-value {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: var(--font-size-data-value);
     font-weight: 600;
     color: var(--text);
     margin-left: auto;
   }
 
   .window-reset {
-    font-size: 0.65rem;
+    font-size: var(--text-md);
     color: var(--text-muted);
     font-family: var(--font-mono);
   }
 
   .empty {
     text-align: center;
-    padding: 1.5rem 0;
+    padding: var(--space-2xl) 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--text-2xl);
     font-family: var(--font-mono);
   }
 </style>

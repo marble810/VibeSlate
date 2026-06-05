@@ -24,20 +24,21 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 0.75rem;
+    padding: var(--space-lg);
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--card-gap);
   }
 
   .title-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding-bottom: var(--space-xs);
   }
 
   .label {
-    font-size: 0.75rem;
+    font-size: var(--text-lg);
     font-weight: 500;
     color: var(--text-muted);
     text-transform: uppercase;

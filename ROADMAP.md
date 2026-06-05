@@ -1,60 +1,71 @@
 # ROADMAP.md — Marble Panel
 
-## Phase 1 — 骨架 ✅
+## Milestones ✅
 
-- [x] 项目结构 (server/ + web/)
-- [x] Bun.serve + SSE + mock 数据
-- [x] Vite + Svelte 5 + bits-ui + SCSS
-- [x] 4 张卡片: CPU, RAM, DeepSeek, OpenAI
-- [x] Dockerfile + docker-compose
-- [x] `bun run dev` 脚本 (Bun.spawn 双进程)
+| # | 里程碑 | 产出 |
+|---|---|---|
+| M1 | 骨架 | Bun.serve + SSE + Vite + Svelte 5 + bits-ui，4 张卡片，`bun run dev` |
+| M2 | UI | Trendline 纯 SVG、Progress.Root、响应式 Grid 1→2→4 列 |
+| M3 | 设计系统 | Card.svelte / ProgressBar.svelte 统一组件，Kiosk 无 hover，accent 紫色统一 |
+| M4 | 真实数据 | DeepSeek Platform API + OpenAI WHAM + OpenCode Go scraping，独立 SSE 事件 |
+| M5 | 认证 UX | Auto-discovery、config.example.jsonc、JSONC 支持 |
 
-## Phase 2 — UI ✅
+---
 
-- [x] `Trendline.svelte` 纯 SVG 组件 (Catmull-Rom 曲线 + 柱状图)
-- [x] bits-ui `Progress.Root` 替换手写进度条
-- [x] 响应式 Grid: 1 → 2 → 4 列
-- [x] 0 warning 构建
+## Phase 6 — PWA ✅
 
-## Phase 3 — 设计系统 ✅
+### 图标 & Manifest
+- [x] 生成 192×192 + 512×512 PNG 图标（nearest-neighbor 采样自 design/logo.png）
+- [x] 添加 `maskable` 图标支持 Android adaptive icons
+- [x] 补充 `apple-touch-icon` link（180×180）
+- [x] `theme_color` / `background_color` → `#000000` 对齐 CSS `--bg`
 
-- [x] `Card.svelte` 统一卡片容器
-- [x] `ProgressBar.svelte` 统一进度条
-- [x] 移除 hover 样式 (Kiosk 规则)
-- [x] 统一 accent 颜色
+### Service Worker
+- [x] `autoUpdate` 模式：SW 静默更新，`skipWaiting()` + `clientsClaim()`
+- [x] Footer 添加 SW 状态指示（active / updated / registering）
+- [x] 验证 precache 覆盖所有关键静态资源（15 entries, 含全部图标+CSS+JS）
+- [ ] 离线可用性验证（断网后页面可加载 — 需浏览器实测）
 
-## Phase 4 — 真实数据 ✅
+### PWA Installable
+- [ ] Lighthouse PWA 审计（需浏览器实测）
+- [ ] Chrome / Edge "Install" 可触发（需浏览器实测）
+- [ ] `display: standalone` 无浏览器 chrome（需浏览器实测）
 
-- [x] **DeepSeek**: Platform API (余额 + 30 天柱状图 + 月用量)
-- [x] **OpenAI Codex**: WHAM API (5h/周窗口进度条 + Plan 标签)
-- [x] **OpenCode Go**: Dashboard HTML scraping (rolling/weekly/monthly)
-- [x] SSE 独立事件: `deepseek` / `openai` / `opencode`
+---
 
-## Phase 5 — 认证 UX ✅
+## Phase 7 — Docker Release
 
-- [x] Auto-discovery: 自动扫描 `~/.codex/auth.json`、`~/.config/deepseek-monitor-tui/`
-- [x] `config.example.jsonc` 带注释模板
-- [x] JSONC 支持 (注释自动剔除)
-- [x] 清晰错误提示
+### Dockerfile
+- [ ] 基座 `oven/bun:1-slim`（两阶段：frontend build → runtime）
+- [ ] `config.json` 排除在镜像外（volume mount）
+- [ ] 保留 `config.example.jsonc` 在镜像内供参考
+- [ ] `HEALTHCHECK` curl `http://localhost:80/`
+- [ ] 确保 `WEB_DIST` 路径容器内正确：`/app/web/dist`
 
-## Now — PWA + AI Provider 完善 + Docker Release
+### docker-compose
+- [ ] `config.json` volume mount: `./server/config.json:/app/server/config.json:ro`
+- [ ] `restart: unless-stopped`
+- [ ] docker-compose 层 healthcheck
+- [ ] 端口：`3000:80`
 
-### PWA
-- [ ] vite-plugin-pwa 已配置 → 生成 manifest + icons
-- [ ] Service Worker 离线验证
-- [ ] PWA installable 验证
+### `.dockerignore`
+- [ ] 排除 `*.md`、`server/config.json`、`.git`、`node_modules/`、`bun.lock`
 
-### AI Provider Usage Monitor
+### 验证
+- [ ] `docker compose up --build` 启动成功
+- [ ] `http://localhost:3000` 页面正常 + SSE 连接
+- [ ] config volume mount 生效（修改宿主机 config 重启生效）
+- [ ] PWA installable 在容器部署下仍可用
+
+---
+
+## Phase 8 — AI Provider UI Polish
+
+### 卡片完善
 - [ ] 各 Provider 卡片 UI 对齐、数据完整性检查
-- [ ] 连接状态可视化 (connected / disconnected 对每个 provider 单独显示)
-- [ ] 空状态文案统一 ("等待 {Provider} 数据…")
-- [ ] 错误状态处理 (API 限流、token 过期)
-
-### Docker Release
-- [ ] Dockerfile 最终化 (`oven/bun:1-slim` 基座)
-- [ ] docker-compose 一键部署
-- [ ] config.json volume mount 验证
-- [ ] 端口映射、健康检查
+- [ ] 连接状态可视化（每个 provider 独立显示 connected / disconnected）
+- [ ] 空状态文案统一（"等待 {Provider} 数据…"）
+- [ ] 错误状态处理（API 限流、token 过期）
 
 ---
 

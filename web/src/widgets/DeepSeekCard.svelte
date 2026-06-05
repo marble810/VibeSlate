@@ -44,161 +44,116 @@
     {/if}
   {/snippet}
   {#if data}
-    <div class="two-col">
-      <!-- ═══ 1d ═══ -->
-      <div class="time-panel">
-        <h4 class="panel-header">[1d]</h4>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th class="mono right">1d</th>
+          <th class="mono right">30d</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Cost -->
+        <tr>
+          <td class="key">Cost</td>
+          <td class="value mono right">¥{data.oneDay.cost.toFixed(4)}</td>
+          <td class="value mono right">¥{data.thirtyDays.cost.toFixed(4)}</td>
+        </tr>
 
-        <div class="cost-row">
-          <span class="label">Cost</span>
-          <span class="value mono">¥{data.oneDay.cost.toFixed(4)}</span>
-        </div>
-
-        {#each Object.entries(data.oneDay.models) as [modelKey, breakdown]}
+        <!-- Model breakdowns -->
+        {#each Object.keys(data.oneDay.models) as modelKey}
           {#if !isHidden(modelKey)}
-            <div class="model-section">
-              <h5 class="model-name">{modelLabel(modelKey)}</h5>
-              <div class="token-rows">
-                <div class="token-row">
-                  <span class="token-label">Cached</span>
-                  <span class="value mono">{fmtToken(breakdown.cached)}</span>
-                </div>
-                <div class="token-row">
-                  <span class="token-label">Non-cached</span>
-                  <span class="value mono">{fmtToken(breakdown.nonCached)}</span>
-                </div>
-                <div class="token-row">
-                  <span class="token-label">Output</span>
-                  <span class="value mono">{fmtToken(breakdown.output)}</span>
-                </div>
-              </div>
-            </div>
+            {@const m1 = data.oneDay.models[modelKey]}
+            {@const m30 = data.thirtyDays.models[modelKey] ?? { cached: 0, nonCached: 0, output: 0 }}
+            <tr class="model-header divider">
+              <td class="model-name" colspan="3">{modelLabel(modelKey)}</td>
+            </tr>
+            <tr>
+              <td class="key">Cached</td>
+              <td class="value mono right">{fmtToken(m1.cached)}</td>
+              <td class="value mono right">{fmtToken(m30.cached)}</td>
+            </tr>
+            <tr>
+              <td class="key">Non-cached</td>
+              <td class="value mono right">{fmtToken(m1.nonCached)}</td>
+              <td class="value mono right">{fmtToken(m30.nonCached)}</td>
+            </tr>
+            <tr>
+              <td class="key">Output</td>
+              <td class="value mono right">{fmtToken(m1.output)}</td>
+              <td class="value mono right">{fmtToken(m30.output)}</td>
+            </tr>
           {/if}
         {/each}
-      </div>
-
-      <!-- ═══ 30d ═══ -->
-      <div class="time-panel">
-        <h4 class="panel-header">[30d]</h4>
-
-        <div class="cost-row">
-          <span class="label">Cost</span>
-          <span class="value mono">¥{data.thirtyDays.cost.toFixed(4)}</span>
-        </div>
-
-        {#each Object.entries(data.thirtyDays.models) as [modelKey, breakdown]}
-          {#if !isHidden(modelKey)}
-            <div class="model-section">
-              <h5 class="model-name">{modelLabel(modelKey)}</h5>
-              <div class="token-rows">
-                <div class="token-row">
-                  <span class="token-label">Cached</span>
-                  <span class="value mono">{fmtToken(breakdown.cached)}</span>
-                </div>
-                <div class="token-row">
-                  <span class="token-label">Non-cached</span>
-                  <span class="value mono">{fmtToken(breakdown.nonCached)}</span>
-                </div>
-                <div class="token-row">
-                  <span class="token-label">Output</span>
-                  <span class="value mono">{fmtToken(breakdown.output)}</span>
-                </div>
-              </div>
-            </div>
-          {/if}
-        {/each}
-      </div>
-    </div>
+      </tbody>
+    </table>
   {:else}
     <div class="empty">等待 DeepSeek 数据…</div>
   {/if}
 </Card>
 
 <style lang="scss">
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th {
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding-bottom: var(--space-sm);
+    }
+
+    td {
+      padding: var(--space-xs) 0;
+      vertical-align: middle;
+    }
   }
 
-  .time-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .panel-header {
-    font-size: 0.65rem;
-    font-weight: 600;
+  .key {
+    font-size: var(--text-md);
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin: 0 0 0.15rem 0;
-  }
-
-  .cost-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .cost-row .label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    padding-left: var(--space-sm);
   }
 
   .value.mono {
     font-family: var(--font-mono);
-    font-size: 0.85rem;
+    font-size: var(--font-size-data-value);
     font-weight: 600;
     color: var(--text);
   }
 
-  .model-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+  .right {
+    text-align: right;
+  }
+
+  .divider td {
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-xs);
+    padding-bottom: var(--space-xs);
   }
 
   .model-name {
-    font-size: 0.75rem;
+    font-size: var(--text-lg);
     font-weight: 600;
     color: var(--accent);
-    margin: 0.25rem 0 0.05rem 0;
-  }
-
-  .token-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-
-  .token-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.05rem 0;
-  }
-
-  .token-label {
-    font-size: 0.72rem;
-    color: var(--text-muted);
+    padding-left: var(--space-sm);
   }
 
   .balance {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: var(--text-xl);
     font-weight: 600;
     color: var(--accent);
   }
 
   .empty {
     text-align: center;
-    padding: 1.5rem 0;
+    padding: var(--space-2xl) 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--text-2xl);
     font-family: var(--font-mono);
   }
 </style>

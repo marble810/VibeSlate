@@ -4,6 +4,7 @@ import { fetchOpenAIData } from './openai';
 import { fetchOpenCodeGoData } from './opencode';
 import { loadConfig } from './config';
 import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
+import { statSync } from 'node:fs';
 
 // ── Config ──
 const config = loadConfig();
@@ -100,12 +101,12 @@ if (config.opencode_workspace_id && config.opencode_auth_cookie) {
 // ── Static file serving ──
 const WEB_DIST = (() => {
   const candidates = [
+    new URL('../../web/dist', import.meta.url).pathname,
     '/app/web/dist',
-    new URL('../web/dist', import.meta.url).pathname,
   ];
   for (const p of candidates) {
     try {
-      if (Bun.statSync(p).isDirectory()) return p;
+      if (statSync(p).isDirectory()) return p;
     } catch {
       // not found
     }
@@ -222,11 +223,15 @@ const server = Bun.serve({
       const file = Bun.file(WEB_DIST + pathname);
       if (await file.exists()) {
         const ext = pathname.split('.').pop()?.toLowerCase() || '';
+        const cacheControl =
+          pathname === '/index.html' || pathname === '/sw.js' || pathname === '/registerSW.js' || ext === 'webmanifest'
+            ? 'no-cache'
+            : 'public, max-age=3600';
         return new Response(file, {
           headers: {
             'Content-Type': MIME[ext] || 'application/octet-stream',
             'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'public, max-age=3600',
+            'Cache-Control': cacheControl,
           },
         });
       }

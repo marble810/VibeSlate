@@ -8,6 +8,8 @@
     "dev:web": "bun run --cwd web dev",
     "build": "bun run --cwd web build",
     "preview": "bun run build && bun run --cwd server start",
+    "tailscale": "bun scripts/tailscale.ts",
+    "tailscale:stop": "tailscale serve --https=443 off",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up --build"
   },

@@ -25,6 +25,27 @@
     'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code',
     monospace;
+  --font-size-data-value: 0.8rem;
+
+  /* Font Size Tokens */
+  --text-xs:   0.6rem;
+  --text-sm:   0.55rem;
+  --text-md:   0.65rem;
+  --text-lg:   0.75rem;
+  --text-xl:   0.8rem;
+  --text-2xl:  0.85rem;
+  --text-3xl:  1.1rem;
+
+  /* Spacing Tokens */
+  --space-xs:   0.1rem;
+  --space-sm:   0.3rem;
+  --space-md:   0.5rem;
+  --space-lg:   0.75rem;
+  --space-xl:   1rem;
+  --space-2xl:  1.5rem;
+  --space-3xl:  2rem;
+  --space-4xl:  3rem;
+  --card-gap:   var(--space-xs);
 }
 
 *,
@@ -39,6 +60,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
 }
 
 body {
@@ -46,40 +68,42 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
 }
 
 /* ── Main grid (stretches to push footer down) ── */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--space-xl);
+  padding: var(--space-xl);
   max-width: 1600px;
   width: 100%;
   margin: 0 auto;
   flex: 1;
   align-content: start;
+  overflow-y: auto;
 }
 
 @media (min-width: 640px) {
   .grid {
-    padding: 1.5rem;
-    gap: 1.25rem;
+    padding: var(--space-2xl);
+    gap: var(--space-xl);
   }
 }
 
 @media (min-width: 1024px) {
   .grid {
-    padding: 2rem;
-    gap: 1.5rem;
+    padding: var(--space-3xl);
+    gap: var(--space-2xl);
   }
 }

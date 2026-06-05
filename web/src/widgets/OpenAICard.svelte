@@ -85,7 +85,7 @@
 
 <style lang="scss">
   .plan-badge {
-    font-size: 0.65rem;
+    font-size: var(--text-md);
     font-weight: 600;
     font-family: var(--font-mono);
     color: var(--accent);
@@ -98,36 +98,36 @@
   .windows {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: var(--card-gap);
   }
 
   .window {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: var(--space-sm);
   }
 
   .window-header {
     display: flex;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: var(--space-md);
   }
 
   .window-label {
-    font-size: 0.75rem;
+    font-size: var(--text-lg);
     color: var(--text);
   }
 
   .window-value {
     font-family: var(--font-mono);
-    font-size: 0.85rem;
+    font-size: var(--font-size-data-value);
     font-weight: 600;
     color: var(--text);
     margin-left: auto;
   }
 
   .window-reset {
-    font-size: 0.65rem;
+    font-size: var(--text-md);
     color: var(--text-muted);
     font-family: var(--font-mono);
   }
@@ -139,29 +139,29 @@
   }
 
   .credits-label {
-    font-size: 0.8rem;
+    font-size: var(--text-xl);
     color: var(--text-muted);
   }
 
   .credits-value {
     font-family: var(--font-mono);
-    font-size: 0.95rem;
+    font-size: var(--text-3xl);
     font-weight: 600;
     color: var(--text);
   }
 
   .limit-alert {
     text-align: center;
-    font-size: 0.8rem;
+    font-size: var(--text-xl);
     color: var(--danger);
     font-weight: 500;
   }
 
   .empty {
     text-align: center;
-    padding: 1.5rem 0;
+    padding: var(--space-2xl) 0;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--text-2xl);
     font-family: var(--font-mono);
   }
 </style>
