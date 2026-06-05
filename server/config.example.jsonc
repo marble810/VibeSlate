@@ -1,0 +1,29 @@
+{
+  // ═══════════════════════════════════════════════════════
+  // Marble Panel — 服务端配置
+  // 复制此文件为 config.json 并填入你的认证信息
+  // ═══════════════════════════════════════════════════════
+
+  // ── DeepSeek Platform ──
+  // 获取方式：浏览器登录 platform.deepseek.com → F12 → Network
+  // → 任意 XHR 请求 → Request Headers → Authorization: Bearer xxx
+  // 复制 Bearer 后面的值（不含 "Bearer "）
+  "deepseek_token": "your-bearer-token-here",
+
+  // ── OpenAI Codex / ChatGPT ──
+  // 获取方式：安装 codex CLI 并登录过一次后，
+  // 从 ~/.codex/auth.json 中取出 tokens.refresh_token 和 tokens.account_id
+  // 如果已安装 codex，服务端会自动发现，无需手动配置
+  "openai_refresh_token": "rt.xxx...",
+  "openai_account_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+
+  // ── OpenCode Go ──
+  // 获取方式：浏览器打开 opencode.ai → 进入 Go 工作区 →
+  // URL 中的 wrk_xxx 就是 workspace_id
+  // DevTools → Application → Cookies → 复制 auth 的值
+  "opencode_workspace_id": "wrk_xxx...",
+  "opencode_auth_cookie": "auth=xxx...",
+
+  // ── 查询间隔（秒）──
+  "query_interval_seconds": 60
+}

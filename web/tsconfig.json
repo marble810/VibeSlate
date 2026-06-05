@@ -12,7 +12,8 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "paths": {
-      "$lib/*": ["./src/lib/*"]
+      "$lib/*": ["./src/lib/*"],
+      "$components/*": ["./src/components/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"],

@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .env
+server/config.json
+server/config.jsonc
 *.lockb
 .DS_Store
 nul

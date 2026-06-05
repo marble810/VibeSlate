@@ -10,5 +10,8 @@
     "preview": "bun run build && bun run --cwd server start",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up --build"
+  },
+  "dependencies": {
+    "systeminformation": "^5.31.7"
   }
 }
