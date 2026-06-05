@@ -1,43 +1,44 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { snapshot } from '$lib/stores';
+  import { snapshot, history, deepseekData, openaiData, opencodeData } from '$lib/stores';
   import { connectSSE } from '$lib/sse';
-  import type { Snapshot } from '$lib/types';
-  import Header from './components/Header.svelte';
+  import type { Snapshot, DeepSeekData, OpenAIData, OpenCodeGoData } from '$lib/types';
   import Footer from './components/Footer.svelte';
   import CpuCard from './widgets/CpuCard.svelte';
   import RamCard from './widgets/RamCard.svelte';
   import DeepSeekCard from './widgets/DeepSeekCard.svelte';
   import OpenAICard from './widgets/OpenAICard.svelte';
+  import OpenCodeCard from './widgets/OpenCodeCard.svelte';
 
   let last = $state<Snapshot | null>(null);
+  let allHistory = $state<Snapshot[]>([]);
+  let dsData = $state<DeepSeekData | null>(null);
+  let oaData = $state<OpenAIData | null>(null);
+  let ocData = $state<OpenCodeGoData | null>(null);
   let unsub: (() => void) | null = null;
 
-  snapshot.subscribe((val) => {
-    last = val;
-  });
+  snapshot.subscribe((val) => { last = val; });
+  history.subscribe((val) => { allHistory = val; });
+  deepseekData.subscribe((val) => { dsData = val; });
+  openaiData.subscribe((val) => { oaData = val; });
+  opencodeData.subscribe((val) => { ocData = val; });
 
   onMount(() => {
     unsub = connectSSE();
-    return () => {
-      unsub?.();
-    };
+    return () => { unsub?.(); };
   });
 
-  // ── helper: format timestamp ──
-  function fmtTs(ts: number): string {
-    return new Date(ts * 1000).toLocaleTimeString('zh-CN');
-  }
+  let cpuHistory = $derived(allHistory.map((s) => s.cpu));
+  let ramHistory = $derived(allHistory.map((s) => s.ram));
 </script>
-
-<Header />
 
 <main class="grid">
   {#if last}
-    <CpuCard label="CPU" value={last.cpu} />
-    <RamCard label="RAM" value={last.ram} />
-    <DeepSeekCard label="DeepSeek" data={last.deepseek} />
-    <OpenAICard label="OpenAI" data={last.openai} />
+    <CpuCard label="CPU" value={last.cpu} history={cpuHistory} />
+    <RamCard label="RAM" value={last.ram} history={ramHistory} />
+    <DeepSeekCard label="DeepSeek" data={dsData} />
+    <OpenAICard label="OpenAI" data={oaData} />
+    <OpenCodeCard label="OpenCode Go" data={ocData} />
   {:else}
     <div class="waiting">Waiting for data…</div>
   {/if}
