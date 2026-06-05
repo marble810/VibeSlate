@@ -73,6 +73,7 @@ async function refreshToken(
   const resp = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15_000),
     body: JSON.stringify({
       client_id: CLIENT_ID,
       grant_type: 'refresh_token',
@@ -117,6 +118,7 @@ async function fetchUsage(accessToken: string, accountId: string): Promise<WhamU
       Accept: 'application/json',
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
     },
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (resp.status === 401 || resp.status === 403) {
