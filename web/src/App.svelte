@@ -27,9 +27,21 @@
 
 <main class="grid">
   {#if hasData}
-    <DeepSeekCard label="DeepSeek" data={dsData} />
-    <OpenAICard label="OpenAI" data={oaData} />
-    <OpenCodeCard label="OpenCode Go" data={ocData} />
+    {#if dsData}
+      <DeepSeekCard label="DeepSeek" data={dsData} />
+    {:else}
+      <div class="waiting-card">等待 DeepSeek 数据…</div>
+    {/if}
+    {#if oaData}
+      <OpenAICard label="OpenAI" data={oaData} />
+    {:else}
+      <div class="waiting-card">等待 OpenAI 数据…</div>
+    {/if}
+    {#if ocData}
+      <OpenCodeCard label="OpenCode Go" data={ocData} />
+    {:else}
+      <div class="waiting-card">等待 OpenCode Go 数据…</div>
+    {/if}
   {:else}
     <div class="waiting">Waiting for data…</div>
   {/if}
@@ -45,5 +57,20 @@
     font-size: 1rem;
     color: var(--text-muted);
     font-family: var(--font-mono);
+  }
+
+  .waiting-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-height: 120px;
   }
 </style>

@@ -15,6 +15,11 @@
     return `${Math.min(pct, 100).toFixed(1)}%`;
   }
 
+  /** Convert used percent to remaining percent */
+  function toRemaining(used: number): number {
+    return Math.max(0, 100 - used);
+  }
+
   function resetLabel(ts: number): string {
     if (!ts) return '';
     const d = new Date(ts * 1000);
@@ -29,7 +34,9 @@
 
 <Card {label}>
   {#snippet badge()}
-    <span class="plan-badge">{data.planType.toUpperCase()}</span>
+    {#if data}
+      <span class="plan-badge">{data.planType.toUpperCase()}</span>
+    {/if}
   {/snippet}
 
   {#if data}
@@ -37,26 +44,26 @@
       <!-- Primary window (5h) -->
       <div class="window">
         <div class="window-header">
-          <span class="window-label">5h 窗口</span>
+          <span class="window-label">5h 剩余</span>
           {#if data.primaryResetsAt}
             <span class="window-reset">重置 {resetLabel(data.primaryResetsAt)}</span>
           {/if}
-          <span class="window-value">{fmtPercent(data.primaryUsedPercent)}</span>
+          <span class="window-value">{fmtPercent(toRemaining(data.primaryUsedPercent))}</span>
         </div>
-        <ProgressBar value={data.primaryUsedPercent} />
+        <ProgressBar value={toRemaining(data.primaryUsedPercent)} />
       </div>
 
       <!-- Secondary window (weekly) -->
       {#if data.secondaryUsedPercent > 0 || data.secondaryResetsAt}
         <div class="window">
           <div class="window-header">
-            <span class="window-label">周窗口</span>
+            <span class="window-label">周剩余</span>
             {#if data.secondaryResetsAt}
               <span class="window-reset">重置 {resetLabel(data.secondaryResetsAt)}</span>
             {/if}
-            <span class="window-value">{fmtPercent(data.secondaryUsedPercent)}</span>
+            <span class="window-value">{fmtPercent(toRemaining(data.secondaryUsedPercent))}</span>
           </div>
-          <ProgressBar value={data.secondaryUsedPercent} />
+          <ProgressBar value={toRemaining(data.secondaryUsedPercent)} />
         </div>
       {/if}
     </div>
@@ -69,7 +76,7 @@
     {/if}
 
     {#if data.limitReached}
-      <div class="limit-alert">⚠ 限额已用尽</div>
+      <div class="limit-alert">⚠ 额度已用尽</div>
     {/if}
   {:else}
     <div class="empty">等待 OpenAI 数据…</div>
