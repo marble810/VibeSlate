@@ -128,6 +128,7 @@ const MIME: Record<string, string> = {
 // ── Server ──
 const server = Bun.serve({
   port: PORT,
+  idleTimeout: 0, // SSE connections must stay open indefinitely
   async fetch(req: Request) {
     const url = new URL(req.url);
 
