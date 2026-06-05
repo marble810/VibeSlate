@@ -1,14 +1,10 @@
-import type { Snapshot, DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
+import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
 import {
-  snapshot as snapshotStore,
   connected,
-  history,
   deepseekData as deepseekStore,
   openaiData as openaiStore,
   opencodeData as opencodeStore,
 } from './stores';
-
-const MAX_HISTORY = 120; // 2 min at 1/s
 
 /**
  * Creates an EventSource connection to the backend SSE endpoint.
@@ -20,24 +16,6 @@ export function connectSSE(url: string = '/events'): () => void {
   es.onopen = () => {
     connected.set(true);
   };
-
-  // ── Snapshot event: CPU, RAM, OpenAI (mock) ──
-  es.addEventListener('snapshot', (event: MessageEvent) => {
-    try {
-      const data: Snapshot = JSON.parse(event.data);
-      snapshotStore.set(data);
-
-      history.update((prev) => {
-        const next = [...prev, data];
-        if (next.length > MAX_HISTORY) {
-          return next.slice(next.length - MAX_HISTORY);
-        }
-        return next;
-      });
-    } catch (err) {
-      console.error('[SSE] Failed to parse snapshot:', err);
-    }
-  });
 
   // ── DeepSeek event: real API data ──
   es.addEventListener('deepseek', (event: MessageEvent) => {

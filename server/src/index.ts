@@ -1,9 +1,9 @@
-import { generateSnapshot } from './mock';
+import { generateHeartbeat } from './mock';
 import { fetchDeepSeekData } from './deepseek';
 import { fetchOpenAIData } from './openai';
 import { fetchOpenCodeGoData } from './opencode';
 import { loadConfig } from './config';
-import type { DeepSeekData, OpenAIData, OpenCodeGoData, Snapshot } from './types';
+import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
 
 // ── Config ──
 const config = loadConfig();
@@ -144,7 +144,6 @@ const server = Bun.serve({
 
     // SSE endpoint
     if (url.pathname === '/events') {
-      let timer: Timer | null = null;
       let pingTimer: Timer | null = null;
 
       const body = new ReadableStream({
@@ -158,18 +157,11 @@ const server = Bun.serve({
           };
           clients.add(enqueue);
 
-          // Push initial snapshot immediately
-          const pushSnapshot = () => {
-            try {
-              const snapshot = generateSnapshot();
-              const data = `event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`;
-              controller.enqueue(new TextEncoder().encode(data));
-            } catch {
-              // controller closed
-            }
-          };
-          pushSnapshot();
-          timer = setInterval(pushSnapshot, 2000);
+          // Send heartbeat immediately
+          const hb = generateHeartbeat();
+          try {
+            controller.enqueue(new TextEncoder().encode(`event: heartbeat\ndata: ${JSON.stringify(hb)}\n\n`));
+          } catch { /* controller closed */ }
 
           // Send cached provider data on connect
           if (deepseekCache) {
@@ -207,7 +199,6 @@ const server = Bun.serve({
           }, 30_000);
         },
         cancel() {
-          if (timer) clearInterval(timer);
           if (pingTimer) clearInterval(pingTimer);
         },
       });
