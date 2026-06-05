@@ -22,6 +22,8 @@ import type {
 
 const BASE = 'https://platform.deepseek.com';
 
+const REQUEST_TIMEOUT_MS = 15_000; // match TUI's http.Client{Timeout: 15s}
+
 // Browser-like headers to avoid WAF blocking
 function headers(token: string): HeadersInit {
   return {
@@ -45,6 +47,7 @@ function headers(token: string): HeadersInit {
 async function fetchUserSummary(token: string): Promise<UserSummaryResponse> {
   const resp = await fetch(`${BASE}/api/v0/users/get_user_summary`, {
     headers: headers(token),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (resp.status === 401 || resp.status === 403) {
@@ -75,7 +78,7 @@ async function fetchUsageAmount(
   month: number,
 ): Promise<UsageAmountResponse> {
   const url = `${BASE}/api/v0/usage/amount?month=${month}&year=${year}`;
-  const resp = await fetch(url, { headers: headers(token) });
+  const resp = await fetch(url, { headers: headers(token), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 
   if (resp.status === 401 || resp.status === 403) throw new Error('AUTH_FAILED');
   if (!resp.ok) {
@@ -97,7 +100,7 @@ async function fetchUsageCost(
   month: number,
 ): Promise<UsageCostResponse> {
   const url = `${BASE}/api/v0/usage/cost?month=${month}&year=${year}`;
-  const resp = await fetch(url, { headers: headers(token) });
+  const resp = await fetch(url, { headers: headers(token), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 
   if (resp.status === 401 || resp.status === 403) throw new Error('AUTH_FAILED');
   if (!resp.ok) {
