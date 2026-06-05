@@ -112,12 +112,19 @@ async function fetchUsageCost(
   return json;
 }
 
-/** Classify a usage type string into cached / non-cached / output. */
+/** Classify a DeepSeek API usage type into cached / non-cached / output. */
 function classifyTokenType(type: string): keyof ModelTokenBreakdown {
-  const t = type.toLowerCase();
-  if (t.includes('cached') || t.includes('cache_hit')) return 'cached';
-  if (t.includes('output') || t.includes('completion') || t.includes('generated')) return 'output';
-  return 'nonCached';
+  // Exact type names from the platform API (verified via deepseek-monitor-tui)
+  switch (type) {
+    case 'PROMPT_CACHE_HIT_TOKEN':
+      return 'cached';
+    case 'RESPONSE_TOKEN':
+      return 'output';
+    case 'PROMPT_TOKEN':
+    case 'PROMPT_CACHE_MISS_TOKEN':
+    default:
+      return 'nonCached';
+  }
 }
 
 /** Parse a model's UsageItem[] into a typed breakdown. */
@@ -130,15 +137,28 @@ function parseModelUsage(usage: UsageItem[]): ModelTokenBreakdown {
   return result;
 }
 
+/**
+ * Find the latest day on or before today.
+ * API returns future days for the current month — we must skip them.
+ */
+function latestDayOnOrBefore(days: DayUsage[], now: Date): DayUsage | null {
+  if (days.length === 0) return null;
+  const cutoff = now.toISOString().slice(0, 10); // "2026-06-05"
+  let selected: DayUsage | null = null;
+  for (const day of days) {
+    if (day.date > cutoff) continue;
+    if (!selected || day.date > selected!.date) {
+      selected = day;
+    }
+  }
+  return selected ?? days[days.length - 1];
+}
+
 /** Aggregate per-model token breakdowns across an array of days. */
-function aggregateDaysTokens(
-  days: DayUsage[],
-  excludeKeys?: Set<string>,
-): Record<string, ModelTokenBreakdown> {
+function aggregateDaysTokens(days: DayUsage[]): Record<string, ModelTokenBreakdown> {
   const result: Record<string, ModelTokenBreakdown> = {};
   for (const day of days) {
     for (const model of day.data) {
-      if (excludeKeys?.has(model.model)) continue;
       if (!result[model.model]) {
         result[model.model] = { cached: 0, nonCached: 0, output: 0 };
       }
@@ -182,25 +202,18 @@ export async function fetchDeepSeekData(token: string): Promise<DeepSeekData | n
       balance += parseFloat(w.balance) || 0;
     }
 
-    // ── Parse token data ──
+    // ── Parse token usage data ──
     const days = usage.data.biz_data.days || [];
-    const hiddenModels = new Set([
-      'deepseek-chat & deepseek-reasoner',
-      'deepseek-chat',
-      'deepseek-reasoner',
-    ]);
 
-    // 30d: aggregate all days (month so far)
-    const thirtyDaysTokens = days.length > 0 ? aggregateDaysTokens(days, hiddenModels) : {};
+    // 30d: aggregate all days in the month
+    const thirtyDaysTokens = aggregateDaysTokens(days);
 
-    // 1d: last day (today)
-    const lastDay = days.length > 0 ? days[days.length - 1] : null;
+    // 1d: find latest day on or before today (API includes future empty dates)
+    const today = latestDayOnOrBefore(days, now);
     const oneDayTokens: Record<string, ModelTokenBreakdown> = {};
-    if (lastDay) {
-      for (const model of lastDay.data) {
-        if (!hiddenModels.has(model.model)) {
-          oneDayTokens[model.model] = parseModelUsage(model.usage);
-        }
+    if (today) {
+      for (const model of today.data) {
+        oneDayTokens[model.model] = parseModelUsage(model.usage);
       }
     }
 
@@ -217,13 +230,13 @@ export async function fetchDeepSeekData(token: string): Promise<DeepSeekData | n
       }
     }
 
-    // 1d cost: sum last day (today) across all biz_data entries
+    // 1d cost: find latest cost day on or before today
     let oneDayCost = 0;
     for (const bizData of costBizData) {
       const costDays = bizData.days || [];
-      if (costDays.length > 0) {
-        const lastCostDay = costDays[costDays.length - 1];
-        for (const model of lastCostDay.data) {
+      const todayCost = latestDayOnOrBefore(costDays, now);
+      if (todayCost) {
+        for (const model of todayCost.data) {
           for (const item of model.usage) {
             oneDayCost += parseFloat(item.amount) || 0;
           }
