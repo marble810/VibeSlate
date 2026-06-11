@@ -2,8 +2,13 @@ node_modules/
 dist/
 dev-dist/
 .env
+.env.*
+!.env.example
 server/config.json
 server/config.jsonc
+server/auth.json
+server/auth.jsonc
+data/
 *.lockb
 .DS_Store
 nul
@@ -11,3 +16,6 @@ nul
 # mkcert local HTTPS certs
 web/key.pem
 web/cert.pem
+*.pem
+*.key
+*.crt
