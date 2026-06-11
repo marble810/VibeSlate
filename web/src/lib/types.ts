@@ -1,5 +1,7 @@
 // ── Provider data types ──
 
+export type WakeLockStatus = 'unsupported' | 'requesting' | 'active' | 'released' | 'denied';
+
 export interface ModelTokenBreakdown {
   cached: number;
   nonCached: number;

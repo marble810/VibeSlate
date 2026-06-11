@@ -1,7 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { deepseekData, openaiData, opencodeData } from '$lib/stores';
+  import { onDestroy, onMount } from 'svelte';
+  import { customAccent, deepseekData, openaiData, opencodeData, theme } from '$lib/stores';
   import { connectSSE } from '$lib/sse';
+  import {
+    DEFAULT_CUSTOM_ACCENT,
+    applyThemeToDocument,
+    normalizeHexColor,
+    readStoredTheme,
+  } from '$lib/theme';
+  import { connectWakeLock } from '$lib/wakeLock';
   import type { DeepSeekData, OpenAIData, OpenCodeGoData } from '$lib/types';
   import Footer from './components/Footer.svelte';
   import DeepSeekCard from './widgets/DeepSeekCard.svelte';
@@ -11,15 +18,61 @@
   let dsData = $state<DeepSeekData | null>(null);
   let oaData = $state<OpenAIData | null>(null);
   let ocData = $state<OpenCodeGoData | null>(null);
-  let unsub: (() => void) | null = null;
+  let disconnectSSE: (() => void) | null = null;
+  let disconnectWakeLock: (() => void) | null = null;
+  let activeTheme = $state(readStoredTheme());
+  let activeCustomAccent = $state(DEFAULT_CUSTOM_ACCENT);
 
-  deepseekData.subscribe((val) => { dsData = val; });
-  openaiData.subscribe((val) => { oaData = val; });
-  opencodeData.subscribe((val) => { ocData = val; });
+  function syncTheme() {
+    applyThemeToDocument(activeTheme, activeCustomAccent);
+  }
+
+  async function loadUiConfig() {
+    try {
+      const response = await fetch('/api/ui-config', {
+        credentials: 'same-origin',
+      });
+      if (!response.ok) return;
+
+      const data = await response.json() as { custom_accent?: unknown };
+      const configuredAccent = normalizeHexColor(data.custom_accent);
+      if (configuredAccent) {
+        customAccent.set(configuredAccent);
+      }
+    } catch {
+      // Keep the default custom accent when config cannot be loaded.
+    }
+  }
+
+  const unsubscribeDeepSeek = deepseekData.subscribe((val) => { dsData = val; });
+  const unsubscribeOpenAI = openaiData.subscribe((val) => { oaData = val; });
+  const unsubscribeOpenCode = opencodeData.subscribe((val) => { ocData = val; });
+  const unsubscribeTheme = theme.subscribe((val) => {
+    activeTheme = val;
+    syncTheme();
+  });
+  const unsubscribeCustomAccent = customAccent.subscribe((val) => {
+    activeCustomAccent = val;
+    syncTheme();
+  });
+
+  onDestroy(() => {
+    unsubscribeDeepSeek();
+    unsubscribeOpenAI();
+    unsubscribeOpenCode();
+    unsubscribeTheme();
+    unsubscribeCustomAccent();
+  });
 
   onMount(() => {
-    unsub = connectSSE();
-    return () => { unsub?.(); };
+    loadUiConfig();
+    disconnectSSE = connectSSE();
+    disconnectWakeLock = connectWakeLock();
+
+    return () => {
+      disconnectSSE?.();
+      disconnectWakeLock?.();
+    };
   });
 
   let hasData = $derived(!!dsData || !!oaData || !!ocData);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import App from "./../App.svelte";
   interface Props {
     label?: string;
     badge?: () => any;
@@ -38,6 +39,7 @@
   }
 
   .label {
+    margin: 0;
     font-size: var(--text-lg);
     font-weight: 500;
     color: var(--text-muted);

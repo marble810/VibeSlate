@@ -7,57 +7,75 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig({
-  plugins: [
-    svelte(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        id: '/',
-        name: 'Marble Panel',
-        short_name: 'Marble',
-        description: 'AI Provider Usage & System Dashboard',
-        start_url: '/',
-        scope: '/',
-        lang: 'zh-CN',
-        theme_color: '#000000',
-        background_color: '#000000',
-        display: 'standalone',
-        orientation: 'any',
-        icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
+export default defineConfig(({ command }) => {
+  const pwaEnabled = command === 'serve'
+    ? process.env.MARBLE_PWA_ENABLED === 'true'
+    : process.env.MARBLE_PWA_ENABLED !== 'false';
+
+  // Hidden entry: when set, PWA uses the hidden path as start_url and scope.
+  // Example: MARBLE_HIDDEN_ENTRY_PATH="portal" → start_url: "/portal/", scope: "/portal/"
+  const hiddenPath = process.env.MARBLE_HIDDEN_ENTRY_PATH
+    ? '/' + process.env.MARBLE_HIDDEN_ENTRY_PATH.replace(/^\/+/, '').replace(/\/+$/, '')
+    : '';
+  const startUrl = hiddenPath ? hiddenPath + '/' : '/';
+  const scope = hiddenPath ? hiddenPath + '/' : '/';
+
+  return {
+    plugins: [
+      svelte(),
+      VitePWA({
+        disable: !pwaEnabled,
+        registerType: 'autoUpdate',
+        manifest: {
+          id: scope,
+          name: 'Marble Panel',
+          short_name: 'Marble Panel',
+          description: 'AI Provider Usage & System Dashboard',
+          start_url: startUrl,
+          scope,
+          lang: 'zh-CN',
+          theme_color: '#000000',
+          background_color: '#000000',
+          display: 'fullscreen',
+          display_override: ['fullscreen', 'standalone'],
+          orientation: 'any',
+          icons: [
+            { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+            { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,webmanifest,png,svg,ico,woff2}'],
+        },
+        devOptions: {
+          enabled: true,
+        },
+      }),
+    ],
+    server: {
+      host: true,
+      port: 5173,
+      https: {
+        key: fs.readFileSync(path.resolve(__dirname, './key.pem')),
+        cert: fs.readFileSync(path.resolve(__dirname, './cert.pem')),
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,webmanifest,png,svg,ico,woff2}'],
+      proxy: {
+        '/auth': 'http://localhost:12001',
+        '/api': 'http://localhost:12001',
+        '/events': 'http://localhost:12001',
       },
-      devOptions: {
-        enabled: true,
+    },
+    resolve: {
+      alias: {
+        $lib: path.resolve(__dirname, './src/lib'),
+        $components: path.resolve(__dirname, './src/components'),
       },
-    }),
-  ],
-  server: {
-    host: true,
-    port: 5173,
-    https: {
-      key: fs.readFileSync(path.resolve(__dirname, './key.pem')),
-      cert: fs.readFileSync(path.resolve(__dirname, './cert.pem')),
     },
-    proxy: {
-      '/events': 'http://localhost:12001',
+    build: {
+      outDir: 'dist',
+      target: 'es2022',
     },
-  },
-  resolve: {
-    alias: {
-      $lib: path.resolve(__dirname, './src/lib'),
-      $components: path.resolve(__dirname, './src/components'),
-    },
-  },
-  build: {
-    outDir: 'dist',
-    target: 'es2022',
-  },
+  };
 });

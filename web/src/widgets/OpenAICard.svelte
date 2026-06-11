@@ -88,8 +88,9 @@
     font-size: var(--text-md);
     font-weight: 600;
     font-family: var(--font-mono);
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    color: var(--badge-text);
+    background: var(--badge-bg);
+    border: 1px solid var(--badge-border);
     padding: 0.15em 0.5em;
     border-radius: var(--radius-sm);
     letter-spacing: 0.03em;
@@ -155,6 +156,7 @@
     font-size: var(--text-xl);
     color: var(--danger);
     font-weight: 500;
+    padding-top: var(--space-lg);
   }
 
   .empty {
