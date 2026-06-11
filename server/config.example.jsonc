@@ -1,7 +1,7 @@
 {
   // ═══════════════════════════════════════════════════════
   // Marble Panel — 服务端配置
-  // 复制此文件为 config.json 并填入你的认证信息
+  // 复制此文件为 config.jsonc 并填入你的认证信息
   // ═══════════════════════════════════════════════════════
 
   // ── DeepSeek Platform ──
@@ -25,5 +25,59 @@
   "opencode_auth_cookie": "auth=xxx...",
 
   // ── 查询间隔（秒）──
-  "query_interval_seconds": 60
+  "query_interval_seconds": 60,
+
+  // ── UI Theme ──
+  // Custom Accent 只允许配置 accent，不改变背景/文字/surface。
+  // 前端 Theme menu 只开放选择项；颜色值从这里读取。
+  "ui": {
+    "custom_accent": "#f59e0b"
+  },
+
+  // ── 可选：公网密码保护（默认关闭）──
+  // 仅在显式开启时生效；不开启时保持现有本地开发和部署行为。
+  // 生成 password_hash:
+  //   bun -e 'console.log(await Bun.password.hash("change-me"))'
+  "auth": {
+    "enabled": false,
+    "password_hash": "$argon2id$v=19$m=65536,t=2,p=1$...",
+    "session_ttl_seconds": 604800,
+    "cookie_name": "marble_session",
+
+    // 公网 HTTPS 部署建议 true；仅本地 HTTP 测试时改为 false。
+    "cookie_secure": true
+  },
+
+  // ── Public Scope 部署（默认 LAN 模式）──
+  // 仅在显式切换到 "public" 时才启用公网保护特性。
+  // LAN 模式不触发 trusted proxy 约束。
+  "public": {
+    // 部署模式："lan"（默认）或 "public"
+    "mode": "lan",
+
+    // 受信任的反代 IP / CIDR 列表（仅在 mode="public" 时生效）
+    // 只有来自这些 IP 的请求，其 X-Forwarded-For / X-Real-IP 才被信任。
+    // 在 Docker Compose 中，填 Caddy 容器所在的 Docker 网段 CIDR。
+    // 不要填服务名（如 "caddy"）——服务名不会被解析为 IP。
+    "trusted_proxies": [
+      "172.16.0.0/12",
+      "10.0.0.0/8",
+      "192.168.0.0/16"
+    ]
+  },
+
+  // ── 可选：隐藏入口（公网可选混淆层）──
+  // 启用后，根路径 / 返回 404（或重定向），
+  // 应用仅通过配置的隐藏路径访问。
+  // 这只是一个发现难度层，不是真正的安全措施。
+  "hidden_entry": {
+    // 是否启用隐藏入口
+    "enabled": false,
+
+    // 隐藏路径（不含首尾斜杠），例如 "portal"、"marble-7a2f"
+    "path": "",
+
+    // 根路径 / 的行为："404" 或 "redirect"（重定向到隐藏路径）
+    "root_response": "404"
+  }
 }

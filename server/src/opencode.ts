@@ -22,13 +22,6 @@ const SCRAPE_TIMEOUT_MS = 10_000;
 
 // ── Regex patterns (SolidJS SSR hydration output) ──
 
-function scrapeNumber(html: string, fieldRe: RegExp): number | null {
-  const m = fieldRe.exec(html);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : null;
-}
-
 // Handle both field orderings (usagePercent then resetInSec, or vice versa)
 function scrapeWindow(
   html: string,

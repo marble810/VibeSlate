@@ -15,6 +15,33 @@ export interface ServerConfig {
   openai_account_id: string;
   opencode_workspace_id: string;
   opencode_auth_cookie: string;
+  ui: UiConfig;
+  auth: PasswordAuthConfig;
+  public: PublicConfig;
+  hidden_entry: HiddenEntryConfig;
+}
+
+export interface UiConfig {
+  custom_accent: string;
+}
+
+export interface PasswordAuthConfig {
+  enabled: boolean;
+  password_hash: string;
+  session_ttl_seconds: number;
+  cookie_name: string;
+  cookie_secure: boolean;
+}
+
+export interface PublicConfig {
+  mode: 'lan' | 'public';
+  trusted_proxies: string[];
+}
+
+export interface HiddenEntryConfig {
+  enabled: boolean;
+  path: string;
+  root_response: '404' | 'redirect';
 }
 
 // ── JSONC parser (strips comments) ──
@@ -34,6 +61,38 @@ function parseJsonFile(path: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function parseBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+}
+
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseHexColor(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+
+  const trimmed = value.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : fallback;
 }
 
 // ── Auto-discovery ──
@@ -103,14 +162,40 @@ function discoverOpenAITokens(): { refresh_token: string; account_id: string } |
 // ── Main loader ──
 
 export function loadConfig(): ServerConfig {
-  // Try config.json / config.jsonc first
+  // Config file resolution order:
+  //   1. MARBLE_CONFIG_FILE env var (explicit path, e.g. /app/data/server.config.json)
+  //   2. config.json / config.jsonc in server directory (local dev)
+  const explicitCfgPath = process.env.MARBLE_CONFIG_FILE;
   const configDir = new URL('..', import.meta.url).pathname;
-  const cfgPaths = [`${configDir}/config.json`, `${configDir}/config.jsonc`];
+  const cfgPaths = explicitCfgPath
+    ? [explicitCfgPath]
+    : [`${configDir}/config.json`, `${configDir}/config.jsonc`];
 
-  let fileCfg: Record<string, unknown> | null = null;
+  let fileCfg: Record<string, unknown> = {};
   for (const p of cfgPaths) {
-    fileCfg = parseJsonFile(p);
-    if (fileCfg) break;
+    const parsed = parseJsonFile(p);
+    if (!parsed) continue;
+
+    fileCfg = {
+      ...fileCfg,
+      ...parsed,
+      auth: {
+        ...asObject(fileCfg.auth),
+        ...asObject(parsed.auth),
+      },
+      ui: {
+        ...asObject(fileCfg.ui),
+        ...asObject(parsed.ui),
+      },
+      public: {
+        ...asObject(fileCfg.public),
+        ...asObject(parsed.public),
+      },
+      hidden_entry: {
+        ...asObject(fileCfg.hidden_entry),
+        ...asObject(parsed.hidden_entry),
+      },
+    };
   }
 
   // Merge: file config overrides auto-discovery
@@ -123,6 +208,8 @@ export function loadConfig(): ServerConfig {
     (fileCfg?.query_interval_seconds as number) || 60;
   const opencodeWsId = (fileCfg?.opencode_workspace_id as string) || '';
   const opencodeCookie = (fileCfg?.opencode_auth_cookie as string) || '';
+  const uiCfg = asObject(fileCfg?.ui);
+  const authCfg = asObject(fileCfg?.auth);
 
   // Auto-discover OpenCode Go only if NOT explicitly set in config
   let finalOpencodeWsId = opencodeWsId;
@@ -146,6 +233,56 @@ export function loadConfig(): ServerConfig {
   const dsToken = deepseek || process.env.DEEPSEEK_PLATFORM_TOKEN || '';
   const oaRefresh = finalRefresh || process.env.OPENAI_REFRESH_TOKEN || '';
   const oaAccount = finalAccount || process.env.OPENAI_ACCOUNT_ID || '';
+  const authEnabled = parseBoolean(
+    authCfg.enabled,
+    parseBoolean(process.env.MARBLE_AUTH_ENABLED, false),
+  );
+  const authPasswordHash =
+    (authCfg.password_hash as string | undefined) || process.env.MARBLE_AUTH_PASSWORD_HASH || '';
+  const authSessionTtlSeconds = parsePositiveInteger(
+    authCfg.session_ttl_seconds,
+    parsePositiveInteger(process.env.MARBLE_AUTH_SESSION_TTL_SECONDS, 7 * 24 * 60 * 60),
+  );
+  const authCookieName =
+    (authCfg.cookie_name as string | undefined) || process.env.MARBLE_AUTH_COOKIE_NAME || 'marble_session';
+  const authCookieSecure = parseBoolean(
+    authCfg.cookie_secure,
+    parseBoolean(process.env.MARBLE_AUTH_COOKIE_SECURE, true),
+  );
+  const customAccent = parseHexColor(
+    uiCfg.custom_accent ?? process.env.MARBLE_UI_CUSTOM_ACCENT,
+    '#8b5cf6',
+  );
+
+  // ── Public Scope config ──
+  const publicCfg = asObject(fileCfg?.public);
+  const publicMode = (publicCfg.mode as string | undefined) === 'public' ? 'public' : 'lan';
+  const publicTrustedProxies: string[] = Array.isArray(publicCfg.trusted_proxies)
+    ? publicCfg.trusted_proxies.filter((v): v is string => typeof v === 'string' && v.length > 0)
+    : (process.env.MARBLE_PUBLIC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  // Validate trusted_proxies: only IP or IP/CIDR entries are accepted.
+  // Service names like "caddy" must be replaced with actual container IP/subnet.
+  const ipv4CidrPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\/\d{1,2})?$/;
+  const ipv6CidrPattern = /^[0-9a-f:]+(\/\d{1,3})?$/i;
+  for (const proxy of publicTrustedProxies) {
+    if (proxy === 'localhost') {
+      console.warn(`[config] Warning: trusted_proxies contains "localhost" — this will NOT match Docker container traffic. Use 127.0.0.1 for host-only or the container subnet (e.g., 172.18.0.0/16).`);
+    } else if (!ipv4CidrPattern.test(proxy) && !ipv6CidrPattern.test(proxy)) {
+      console.warn(`[config] Warning: trusted_proxies entry "${proxy}" is not an IP or CIDR — it will never match. Replace service names like "caddy" with actual IP addresses or subnets.`);
+    }
+  }
+
+  // ── Hidden entry gate config ──
+  const hiddenCfg = asObject(fileCfg?.hidden_entry);
+  const hiddenEnabled = parseBoolean(
+    hiddenCfg.enabled,
+    parseBoolean(process.env.MARBLE_HIDDEN_ENTRY_ENABLED, false),
+  );
+  const hiddenPath = (typeof hiddenCfg.path === 'string' && hiddenCfg.path.length > 0
+    ? hiddenCfg.path
+    : process.env.MARBLE_HIDDEN_ENTRY_PATH || '').replace(/^\/+/, '').replace(/\/+$/, '');
+  const hiddenRootResponse = (hiddenCfg.root_response === 'redirect' ? 'redirect' : '404') as '404' | 'redirect';
 
   // Helpful messages
   if (!dsToken) {
@@ -163,6 +300,10 @@ export function loadConfig(): ServerConfig {
     console.warn('  → Create server/config.json with: {"opencode_workspace_id": "wrk_...", "opencode_auth_cookie": "..."}');
     console.warn('  → See config.example.jsonc for detailed instructions');
   }
+  if (authEnabled && !authPasswordHash) {
+    console.warn('[config] Password auth is enabled, but auth.password_hash is missing.');
+    console.warn('  → Generate one with: bun -e \'console.log(await Bun.password.hash("change-me"))\'');
+  }
 
   return {
     deepseek_token: dsToken,
@@ -171,5 +312,24 @@ export function loadConfig(): ServerConfig {
     openai_account_id: oaAccount,
     opencode_workspace_id: finalOpencodeWsId,
     opencode_auth_cookie: finalOpencodeCookie,
+    ui: {
+      custom_accent: customAccent,
+    },
+    auth: {
+      enabled: authEnabled,
+      password_hash: authPasswordHash,
+      session_ttl_seconds: authSessionTtlSeconds,
+      cookie_name: authCookieName,
+      cookie_secure: authCookieSecure,
+    },
+    public: {
+      mode: publicMode,
+      trusted_proxies: publicTrustedProxies,
+    },
+    hidden_entry: {
+      enabled: hiddenEnabled && hiddenPath.length > 0,
+      path: hiddenPath,
+      root_response: hiddenRootResponse,
+    },
   };
 }

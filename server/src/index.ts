@@ -3,13 +3,49 @@ import { fetchDeepSeekData } from './deepseek';
 import { fetchOpenAIData } from './openai';
 import { fetchOpenCodeGoData } from './opencode';
 import { loadConfig } from './config';
+import { createAuthManager } from './auth';
+import { isBanned } from './banned-ips';
 import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
 import { statSync } from 'node:fs';
 
 // ── Config ──
 const config = loadConfig();
+
+// Startup validation: Public Scope must fail closed before binding a socket.
+if (config.public.mode === 'public') {
+  if (!config.auth.enabled) {
+    console.error('[public] FATAL: Public Scope requires password auth.');
+    console.error('  → Enable auth in the Docker init config or re-run bun run docker:init.');
+    process.exit(1);
+  }
+  if (!config.auth.password_hash) {
+    console.error('[public] FATAL: Public Scope requires auth.password_hash.');
+    console.error('  → Re-run bun run docker:init to generate a password hash.');
+    process.exit(1);
+  }
+  if (config.public.trusted_proxies.length === 0) {
+    console.error('[public] FATAL: Public Scope requires at least one trusted proxy IP/CIDR.');
+    console.error('  → Set public.trusted_proxies to the Docker bridge CIDR used by Caddy.');
+    process.exit(1);
+  }
+}
+
+// ── Hidden entry gate ──
+const hiddenEntry = config.hidden_entry;
+const hiddenPath = hiddenEntry.enabled ? '/' + hiddenEntry.path : '';
+
+const auth = createAuthManager(config.auth, config.public, hiddenPath);
 const PORT = parseInt(process.env.PORT || '12001', 10);
+const HOST = process.env.HOST || 'localhost';
 const DEEPSEEK_INTERVAL = (config.query_interval_seconds || 60) * 1000;
+
+// ── TLS support (LAN HTTPS) ──
+const TLS_CERT_FILE = process.env.TLS_CERT_FILE;
+const TLS_KEY_FILE = process.env.TLS_KEY_FILE;
+const useTls = !!(TLS_CERT_FILE && TLS_KEY_FILE);
+if (useTls) {
+  console.log(`[tls] TLS enabled — cert: ${TLS_CERT_FILE}, key: ${TLS_KEY_FILE}`);
+}
 
 // ── Cached provider data ──
 let deepseekCache: DeepSeekData | null = null;
@@ -129,9 +165,57 @@ const MIME: Record<string, string> = {
 // ── Server ──
 const server = Bun.serve({
   port: PORT,
+  hostname: HOST,
   idleTimeout: 0, // SSE connections must stay open indefinitely
-  async fetch(req: Request) {
-    const url = new URL(req.url);
+  ...(useTls ? {
+    tls: {
+      key: Bun.file(TLS_KEY_FILE!),
+      cert: Bun.file(TLS_CERT_FILE!),
+    },
+  } : {}),
+  async fetch(req: Request, server) {
+    // ── Banned IP check ──
+    // If Fail2Ban is active and the ban list file exists in the shared
+    // volume, block requests from banned IPs before any other processing.
+    if (isBanned(auth.resolveIp(req, server))) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    let url = new URL(req.url);
+
+    // ── Hidden entry gate ──
+    if (hiddenEntry.enabled) {
+      // Allowed path prefixes (without hidden path):
+      //   /auth/*   — login/logout/status
+      //   /api/*    — API endpoints
+      //   /events   — SSE stream
+      const isAuthOrApi = url.pathname.startsWith('/auth/') || url.pathname.startsWith('/api/') || url.pathname === '/events';
+      const isHiddenPath = url.pathname === '/' + hiddenEntry.path
+        || url.pathname.startsWith('/' + hiddenEntry.path + '/');
+      const hasStaticExt = url.pathname.includes('.') && !url.pathname.endsWith('/');
+
+      if (!isAuthOrApi && !isHiddenPath && !hasStaticExt) {
+        // Block all non-hidden app-shell paths.
+        // Special case: root / can redirect to hidden path if configured.
+        if ((url.pathname === '/' || url.pathname === '') && hiddenEntry.root_response === 'redirect') {
+          return new Response(null, {
+            status: 303,
+            headers: { Location: hiddenPath + '/' },
+          });
+        }
+        return new Response('Not Found', { status: 404 });
+      }
+
+      // Rewrite hidden entry path to root for app serving.
+      // Effect: /<hiddenPath>/ → /, /<hiddenPath>/route → /route
+      if (isHiddenPath) {
+        const rewritten = url.pathname.slice(('/' + hiddenEntry.path).length) || '/';
+        url = new URL(rewritten + url.search, url.origin);
+      }
+    }
+
+    const authRoute = await auth.handleRoute(req, url, server);
+    if (authRoute) return authRoute;
 
     // CORS preflight
     if (req.method === 'OPTIONS') {
@@ -144,8 +228,28 @@ const server = Bun.serve({
       });
     }
 
+    if (url.pathname === '/api/ui-config') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+
+      return Response.json(
+        {
+          custom_accent: config.ui.custom_accent,
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*',
+          },
+        },
+      );
+    }
+
     // SSE endpoint
     if (url.pathname === '/events') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+
       let pingTimer: Timer | null = null;
 
       const body = new ReadableStream({
@@ -219,9 +323,15 @@ const server = Bun.serve({
     if (WEB_DIST) {
       let pathname = url.pathname;
       if (pathname === '/') pathname = '/index.html';
+      const isAppShell = pathname === '/index.html' || !pathname.includes('.');
 
       const file = Bun.file(WEB_DIST + pathname);
       if (await file.exists()) {
+        if (isAppShell) {
+          const authResponse = auth.requirePage(req);
+          if (authResponse) return authResponse;
+        }
+
         const ext = pathname.split('.').pop()?.toLowerCase() || '';
         const cacheControl =
           pathname === '/index.html' || pathname === '/sw.js' || pathname === '/registerSW.js' || ext === 'webmanifest'
@@ -239,6 +349,9 @@ const server = Bun.serve({
       // SPA fallback
       const indexFile = Bun.file(WEB_DIST + '/index.html');
       if (await indexFile.exists()) {
+        const authResponse = auth.requirePage(req);
+        if (authResponse) return authResponse;
+
         return new Response(indexFile, {
           headers: { 'Content-Type': 'text/html', 'Access-Control-Allow-Origin': '*' },
         });
@@ -249,7 +362,8 @@ const server = Bun.serve({
   },
 });
 
-console.log(`Marble Panel server running on http://localhost:${server.port}`);
+const protocol = useTls ? 'https' : 'http';
+console.log(`Marble Panel server running on ${protocol}://${HOST}:${server.port}`);
 console.log(
   WEB_DIST ? `Serving static files from: ${WEB_DIST}` : 'Warning: No web dist — static serving disabled',
 );
@@ -268,3 +382,18 @@ console.log(
     ? `OpenCode Go API: enabled (refresh every ${config.query_interval_seconds}s)`
     : 'OpenCode Go API: DISABLED (no credentials configured)',
 );
+console.log(
+  auth.isEnabled()
+    ? 'Password auth: enabled'
+    : 'Password auth: disabled',
+);
+
+if (config.public.mode === 'public') {
+  console.log(`[public] Mode: public — trusted proxies: ${config.public.trusted_proxies.join(', ') || '(none)'}`);
+} else {
+  console.log('[public] Mode: lan');
+}
+
+if (hiddenEntry.enabled) {
+  console.log(`[hidden-entry] Enabled — path: /${hiddenEntry.path}, root: ${hiddenEntry.root_response}`);
+}
