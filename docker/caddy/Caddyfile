@@ -1,0 +1,67 @@
+# Caddy reverse proxy for Marble Panel Public Scope deployment.
+#
+# Caddy owns public TLS, strips spoofed client IP headers, sets trusted
+# X-Forwarded-For, and forwards to the Bun app over the internal Docker
+# network.
+#
+# Usage:
+#   caddy run --config deploy/caddy/Caddyfile
+#
+# For Docker Compose, this file is mounted into the Caddy container.
+
+# ── Global options ──
+{
+    # Disable admin API in production
+    admin off
+
+    # Log format compatible with Fail2Ban
+    log {
+        output stdout
+        format json
+    }
+}
+
+# ── Site block ──
+# Replace YOUR_DOMAIN with your public domain name.
+YOUR_DOMAIN {
+    # ── Strip spoofed client IP headers ──
+    # Must run before header_up to prevent header injection.
+    # Deleting downstream headers is done in the `header` directive.
+    header {
+        -Server
+    }
+
+    # ── Reverse proxy to Bun app (internal Docker network) ──
+    reverse_proxy app:12001 {
+        # ── Set trusted upstream client IP headers ──
+        # Use header_up to set headers on the upstream request.
+        header_up X-Forwarded-For {client_ip}
+        header_up X-Real-IP {client_ip}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+
+        # Disable buffering for SSE (Server-Sent Events)
+        flush_interval -1
+
+        # Pass through connection headers for SSE keep-alive
+        header_up Connection {>Connection}
+        header_up Upgrade {>Upgrade}
+    }
+
+    # ── HSTS (optional, uncomment when TLS is stable) ──
+    # Warning: enabling HSTS when your domain/TLS setup is still
+    # experimental can lock users out. Enable only after verifying
+    # TLS works correctly for at least a few days.
+    # header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # ── Access logs ──
+    log {
+        output file /var/log/caddy/marble-panel-access.log
+        format json
+    }
+}
+
+# ── HTTP → HTTPS redirect ──
+YOUR_DOMAIN:80 {
+    redir https://{host}{uri} permanent
+}
