@@ -16,7 +16,8 @@ import type { OpenAIData, WhamUsageResponse } from './types';
 
 // ── OAuth constants (from codex-rs source) ──
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 const TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
@@ -64,6 +65,51 @@ function autoSaveRefreshToken(newToken: string) {
 }
 
 /**
+ * Get the runtime token state file path, if configured.
+ * Only set in Docker deployments via OPENAI_TOKEN_STATE_FILE env.
+ */
+function getOpenAITokenStatePath(): string | null {
+  const path = process.env.OPENAI_TOKEN_STATE_FILE;
+  return path && path.length > 0 ? path : null;
+}
+
+/**
+ * Persist the latest OpenAI refresh token and account ID to the runtime
+ * state file. Uses atomic write (temp file + rename) to avoid corrupt JSON.
+ */
+function persistOpenAITokenState(refreshToken: string, accountId: string): void {
+  const statePath = getOpenAITokenStatePath();
+  if (!statePath) return;
+
+  const payload = JSON.stringify(
+    {
+      version: 1,
+      openai_refresh_token: refreshToken,
+      openai_account_id: accountId,
+      updated_at: new Date().toISOString(),
+    },
+    null,
+    2,
+  );
+
+  try {
+    mkdirSync(dirname(statePath), { recursive: true });
+  } catch {
+    // Directory may already exist — not fatal.
+  }
+
+  const tmpPath = statePath + '.tmp';
+  try {
+    writeFileSync(tmpPath, payload, 'utf-8');
+    renameSync(tmpPath, statePath);
+    console.log('[openai]   ✓ Persisted latest token state');
+  } catch (err) {
+    console.warn(`[openai]   ⚠ Failed to persist token state: ${err instanceof Error ? err.message : err}`);
+    try { unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+  }
+}
+
+/**
  * Exchange refresh_token for a new access_token.
  * Returns the new tokens. Also logs if refresh_token was rotated.
  */
@@ -95,17 +141,23 @@ async function refreshToken(
 
   // Detect rotated refresh_token
   if (data.refresh_token && data.refresh_token !== refreshToken) {
-    console.warn(
-      '[openai] Refresh token rotated — auto-saving to config.json',
-    );
-    // Try to auto-save to known config paths
-    autoSaveRefreshToken(data.refresh_token);
+    console.warn('[openai] Refresh token rotated');
+  }
+
+  const latestRefreshToken = data.refresh_token || refreshToken;
+  const latestAccountId = data.account_id || '';
+
+  // Persist to Docker runtime state file if configured, otherwise try local config auto-save
+  if (getOpenAITokenStatePath()) {
+    persistOpenAITokenState(latestRefreshToken, latestAccountId);
+  } else if (latestRefreshToken !== refreshToken) {
+    autoSaveRefreshToken(latestRefreshToken);
   }
 
   return {
     access_token: data.access_token,
-    refresh_token: data.refresh_token || refreshToken,
-    account_id: data.account_id || '',
+    refresh_token: latestRefreshToken,
+    account_id: latestAccountId,
   };
 }
 

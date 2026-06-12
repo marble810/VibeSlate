@@ -17,8 +17,6 @@ export interface ServerConfig {
   opencode_auth_cookie: string;
   ui: UiConfig;
   auth: PasswordAuthConfig;
-  public: PublicConfig;
-  hidden_entry: HiddenEntryConfig;
 }
 
 export interface UiConfig {
@@ -31,17 +29,6 @@ export interface PasswordAuthConfig {
   session_ttl_seconds: number;
   cookie_name: string;
   cookie_secure: boolean;
-}
-
-export interface PublicConfig {
-  mode: 'lan' | 'public';
-  trusted_proxies: string[];
-}
-
-export interface HiddenEntryConfig {
-  enabled: boolean;
-  path: string;
-  root_response: '404' | 'redirect';
 }
 
 // ── JSONC parser (strips comments) ──
@@ -97,7 +84,6 @@ function parseHexColor(value: unknown, fallback: string): string {
 
 // ── Auto-discovery ──
 
-/** Discover OpenCode Go credentials from known config files. */
 function discoverOpenCodeGoCredentials(): { workspace_id: string; auth_cookie: string } | null {
   const paths = [
     `${home}/.config/opencode-bar/opencode-go.json`,
@@ -119,7 +105,6 @@ function discoverOpenCodeGoCredentials(): { workspace_id: string; auth_cookie: s
 }
 
 function discoverDeepSeekToken(): string | null {
-  // 1. deepseek-monitor-tui config (same machine)
   const dpskmonPaths = [
     `${process.cwd()}/deepseek-monitor-tui.json`,
     `${home}/.config/deepseek-monitor-tui/config.json`,
@@ -135,7 +120,6 @@ function discoverDeepSeekToken(): string | null {
 }
 
 function discoverOpenAITokens(): { refresh_token: string; account_id: string } | null {
-  // 1. codex CLI auth file
   const codexAuthPath = `${home}/.codex/auth.json`;
   const cfg = parseJsonFile(codexAuthPath);
   if (cfg?.tokens && typeof cfg.tokens === 'object') {
@@ -149,7 +133,6 @@ function discoverOpenAITokens(): { refresh_token: string; account_id: string } |
     }
   }
 
-  // 2. pi chatgpt-limit config
   const piCfgPath = `${home}/.pi/extensions/pi-chatgpt-limit.json`;
   const piCfg = parseJsonFile(piCfgPath);
   if (piCfg?.openai_refresh_token) {
@@ -161,10 +144,34 @@ function discoverOpenAITokens(): { refresh_token: string; account_id: string } |
 
 // ── Main loader ──
 
+/**
+ * Load OpenAI token state from a runtime persistence file.
+ * Returns null if file doesn't exist, is bad JSON, or has invalid values.
+ */
+function loadOpenAITokenState(path: string): { openai_refresh_token: string; openai_account_id: string } | null {
+  if (!existsSync(path)) return null;
+
+  try {
+    const raw = readFileSync(path, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const refresh = (parsed as Record<string, unknown>).openai_refresh_token;
+    const account = (parsed as Record<string, unknown>).openai_account_id;
+
+    if (typeof refresh !== 'string' || refresh.length === 0) return null;
+
+    return {
+      openai_refresh_token: refresh,
+      openai_account_id: typeof account === 'string' ? account : '',
+    };
+  } catch {
+    console.warn(`[config] Warning: OpenAI token state file at ${path} is invalid — ignoring.`);
+    return null;
+  }
+}
+
 export function loadConfig(): ServerConfig {
-  // Config file resolution order:
-  //   1. MARBLE_CONFIG_FILE env var (explicit path, e.g. /app/data/server.config.json)
-  //   2. config.json / config.jsonc in server directory (local dev)
   const explicitCfgPath = process.env.MARBLE_CONFIG_FILE;
   const configDir = new URL('..', import.meta.url).pathname;
   const cfgPaths = explicitCfgPath
@@ -187,31 +194,18 @@ export function loadConfig(): ServerConfig {
         ...asObject(fileCfg.ui),
         ...asObject(parsed.ui),
       },
-      public: {
-        ...asObject(fileCfg.public),
-        ...asObject(parsed.public),
-      },
-      hidden_entry: {
-        ...asObject(fileCfg.hidden_entry),
-        ...asObject(parsed.hidden_entry),
-      },
     };
   }
 
-  // Merge: file config overrides auto-discovery
   const deepseek = (fileCfg?.deepseek_token as string) || discoverDeepSeekToken() || '';
-  const openaiRefresh =
-    (fileCfg?.openai_refresh_token as string) || '';
-  const openaiAccount =
-    (fileCfg?.openai_account_id as string) || '';
-  const interval =
-    (fileCfg?.query_interval_seconds as number) || 60;
+  const openaiRefresh = (fileCfg?.openai_refresh_token as string) || '';
+  const openaiAccount = (fileCfg?.openai_account_id as string) || '';
+  const interval = (fileCfg?.query_interval_seconds as number) || 60;
   const opencodeWsId = (fileCfg?.opencode_workspace_id as string) || '';
   const opencodeCookie = (fileCfg?.opencode_auth_cookie as string) || '';
   const uiCfg = asObject(fileCfg?.ui);
   const authCfg = asObject(fileCfg?.auth);
 
-  // Auto-discover OpenCode Go only if NOT explicitly set in config
   let finalOpencodeWsId = opencodeWsId;
   let finalOpencodeCookie = opencodeCookie;
   if (!finalOpencodeWsId || !finalOpencodeCookie) {
@@ -229,62 +223,40 @@ export function loadConfig(): ServerConfig {
     if (discovered && !finalAccount) finalAccount = discovered.account_id;
   }
 
-  // Fallback to env vars
   const dsToken = deepseek || process.env.DEEPSEEK_PLATFORM_TOKEN || '';
-  const oaRefresh = finalRefresh || process.env.OPENAI_REFRESH_TOKEN || '';
-  const oaAccount = finalAccount || process.env.OPENAI_ACCOUNT_ID || '';
+  let oaRefresh = finalRefresh || process.env.OPENAI_REFRESH_TOKEN || '';
+  let oaAccount = finalAccount || process.env.OPENAI_ACCOUNT_ID || '';
+
+  // ── Runtime token state override (Docker token persistence) ──
+  const tokenStatePath = process.env.OPENAI_TOKEN_STATE_FILE;
+  if (tokenStatePath) {
+    const stateTokens = loadOpenAITokenState(tokenStatePath);
+    if (stateTokens) {
+      if (stateTokens.openai_refresh_token) oaRefresh = stateTokens.openai_refresh_token;
+      if (stateTokens.openai_account_id) oaAccount = stateTokens.openai_account_id;
+    }
+  }
   const authEnabled = parseBoolean(
     authCfg.enabled,
-    parseBoolean(process.env.MARBLE_AUTH_ENABLED, false),
+    parseBoolean(process.env.AUTH_ENABLED, false),
   );
   const authPasswordHash =
-    (authCfg.password_hash as string | undefined) || process.env.MARBLE_AUTH_PASSWORD_HASH || '';
+    (authCfg.password_hash as string | undefined) || process.env.AUTH_PASSWORD_HASH || '';
   const authSessionTtlSeconds = parsePositiveInteger(
     authCfg.session_ttl_seconds,
-    parsePositiveInteger(process.env.MARBLE_AUTH_SESSION_TTL_SECONDS, 7 * 24 * 60 * 60),
+    parsePositiveInteger(process.env.AUTH_SESSION_TTL_SECONDS, 7 * 24 * 60 * 60),
   );
   const authCookieName =
-    (authCfg.cookie_name as string | undefined) || process.env.MARBLE_AUTH_COOKIE_NAME || 'marble_session';
+    (authCfg.cookie_name as string | undefined) || process.env.AUTH_COOKIE_NAME || 'marble_session';
   const authCookieSecure = parseBoolean(
     authCfg.cookie_secure,
-    parseBoolean(process.env.MARBLE_AUTH_COOKIE_SECURE, true),
+    parseBoolean(process.env.AUTH_COOKIE_SECURE, true),
   );
   const customAccent = parseHexColor(
-    uiCfg.custom_accent ?? process.env.MARBLE_UI_CUSTOM_ACCENT,
+    uiCfg.custom_accent ?? process.env.UI_CUSTOM_ACCENT,
     '#8b5cf6',
   );
 
-  // ── Public Scope config ──
-  const publicCfg = asObject(fileCfg?.public);
-  const publicMode = (publicCfg.mode as string | undefined) === 'public' ? 'public' : 'lan';
-  const publicTrustedProxies: string[] = Array.isArray(publicCfg.trusted_proxies)
-    ? publicCfg.trusted_proxies.filter((v): v is string => typeof v === 'string' && v.length > 0)
-    : (process.env.MARBLE_PUBLIC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean);
-
-  // Validate trusted_proxies: only IP or IP/CIDR entries are accepted.
-  // Service names like "caddy" must be replaced with actual container IP/subnet.
-  const ipv4CidrPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\/\d{1,2})?$/;
-  const ipv6CidrPattern = /^[0-9a-f:]+(\/\d{1,3})?$/i;
-  for (const proxy of publicTrustedProxies) {
-    if (proxy === 'localhost') {
-      console.warn(`[config] Warning: trusted_proxies contains "localhost" — this will NOT match Docker container traffic. Use 127.0.0.1 for host-only or the container subnet (e.g., 172.18.0.0/16).`);
-    } else if (!ipv4CidrPattern.test(proxy) && !ipv6CidrPattern.test(proxy)) {
-      console.warn(`[config] Warning: trusted_proxies entry "${proxy}" is not an IP or CIDR — it will never match. Replace service names like "caddy" with actual IP addresses or subnets.`);
-    }
-  }
-
-  // ── Hidden entry gate config ──
-  const hiddenCfg = asObject(fileCfg?.hidden_entry);
-  const hiddenEnabled = parseBoolean(
-    hiddenCfg.enabled,
-    parseBoolean(process.env.MARBLE_HIDDEN_ENTRY_ENABLED, false),
-  );
-  const hiddenPath = (typeof hiddenCfg.path === 'string' && hiddenCfg.path.length > 0
-    ? hiddenCfg.path
-    : process.env.MARBLE_HIDDEN_ENTRY_PATH || '').replace(/^\/+/, '').replace(/\/+$/, '');
-  const hiddenRootResponse = (hiddenCfg.root_response === 'redirect' ? 'redirect' : '404') as '404' | 'redirect';
-
-  // Helpful messages
   if (!dsToken) {
     console.warn('[config] DeepSeek token not found.');
     console.warn('  → Create server/config.json with: {"deepseek_token": "your-bearer-token"}');
@@ -321,15 +293,6 @@ export function loadConfig(): ServerConfig {
       session_ttl_seconds: authSessionTtlSeconds,
       cookie_name: authCookieName,
       cookie_secure: authCookieSecure,
-    },
-    public: {
-      mode: publicMode,
-      trusted_proxies: publicTrustedProxies,
-    },
-    hidden_entry: {
-      enabled: hiddenEnabled && hiddenPath.length > 0,
-      path: hiddenPath,
-      root_response: hiddenRootResponse,
     },
   };
 }

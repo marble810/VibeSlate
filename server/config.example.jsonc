@@ -11,9 +11,11 @@
   "deepseek_token": "your-bearer-token-here",
 
   // ── OpenAI Codex / ChatGPT ──
-  // 获取方式：安装 codex CLI 并登录过一次后，
-  // 从 ~/.codex/auth.json 中取出 tokens.refresh_token 和 tokens.account_id
-  // 如果已安装 codex，服务端会自动发现，无需手动配置
+  // 获取方式：安装 Codex CLI/App → 登录 ChatGPT 账号后，
+  // 从 ~/.codex/auth.json → tokens.refresh_token 和 tokens.account_id 复制
+  // 或运行宿主机脚本：
+  //   macOS / Linux: ./scripts/print-codex-openai-env.sh
+  //   PowerShell:    .\scripts\print-codex-openai-env.ps1
   "openai_refresh_token": "rt.xxx...",
   "openai_account_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
 
@@ -34,8 +36,7 @@
     "custom_accent": "#f59e0b"
   },
 
-  // ── 可选：公网密码保护（默认关闭）──
-  // 仅在显式开启时生效；不开启时保持现有本地开发和部署行为。
+  // ── 可选：密码保护（默认关闭）──
   // 生成 password_hash:
   //   bun -e 'console.log(await Bun.password.hash("change-me"))'
   "auth": {
@@ -43,41 +44,6 @@
     "password_hash": "$argon2id$v=19$m=65536,t=2,p=1$...",
     "session_ttl_seconds": 604800,
     "cookie_name": "marble_session",
-
-    // 公网 HTTPS 部署建议 true；仅本地 HTTP 测试时改为 false。
     "cookie_secure": true
-  },
-
-  // ── Public Scope 部署（默认 LAN 模式）──
-  // 仅在显式切换到 "public" 时才启用公网保护特性。
-  // LAN 模式不触发 trusted proxy 约束。
-  "public": {
-    // 部署模式："lan"（默认）或 "public"
-    "mode": "lan",
-
-    // 受信任的反代 IP / CIDR 列表（仅在 mode="public" 时生效）
-    // 只有来自这些 IP 的请求，其 X-Forwarded-For / X-Real-IP 才被信任。
-    // 在 Docker Compose 中，填 Caddy 容器所在的 Docker 网段 CIDR。
-    // 不要填服务名（如 "caddy"）——服务名不会被解析为 IP。
-    "trusted_proxies": [
-      "172.16.0.0/12",
-      "10.0.0.0/8",
-      "192.168.0.0/16"
-    ]
-  },
-
-  // ── 可选：隐藏入口（公网可选混淆层）──
-  // 启用后，根路径 / 返回 404（或重定向），
-  // 应用仅通过配置的隐藏路径访问。
-  // 这只是一个发现难度层，不是真正的安全措施。
-  "hidden_entry": {
-    // 是否启用隐藏入口
-    "enabled": false,
-
-    // 隐藏路径（不含首尾斜杠），例如 "portal"、"marble-7a2f"
-    "path": "",
-
-    // 根路径 / 的行为："404" 或 "redirect"（重定向到隐藏路径）
-    "root_response": "404"
   }
 }

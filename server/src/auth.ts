@@ -1,33 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { appendFileSync, mkdirSync } from 'node:fs';
-import type { PasswordAuthConfig, PublicConfig } from './config';
-import { resolveClientIp } from './trusted-ip';
-import type { RequestIPProvider } from './trusted-ip';
-
-const AUTH_LOG_FILE = '/var/log/marble-panel/auth.log';
-
-function ensureAuthLogFile(): void {
-  try {
-    mkdirSync('/var/log/marble-panel', { recursive: true });
-    appendFileSync(AUTH_LOG_FILE, '');
-  } catch {
-    // Non-Docker/local environments may not be allowed to write /var/log.
-  }
-}
-
-ensureAuthLogFile();
-
-function writeAuthLog(line: string): void {
-  // Always log to stderr for Docker json-file logging.
-  console.warn(line);
-  // Also append to the auth log file for Fail2Ban (best-effort).
-  try {
-    appendFileSync(AUTH_LOG_FILE, line + '\n');
-  } catch {
-    // File may not be writable in some environments — that's ok,
-    // the stderr line is the canonical source.
-  }
-}
+import type { PasswordAuthConfig } from './config';
 
 const LOGIN_PATH = '/auth/login';
 const LOGOUT_PATH = '/auth/logout';
@@ -205,33 +177,13 @@ function unauthorizedResponse(): Response {
 }
 
 export class AuthManager {
-  private readonly publicConfig: PublicConfig;
-  private readonly hiddenPath: string;
-
-  constructor(
-    private readonly config: PasswordAuthConfig,
-    publicConfig: PublicConfig,
-    hiddenEntryPath: string,
-  ) {
-    this.publicConfig = publicConfig;
-    this.hiddenPath = hiddenEntryPath;
-  }
-
-  /** Get the base redirect path, respecting hidden entry if enabled. */
-  private getBasePath(): string {
-    return this.hiddenPath || '/';
-  }
-
-  /** Resolve the trusted client IP for a request. */
-  resolveIp(req: Request, server: RequestIPProvider | null): string {
-    return resolveClientIp(req, server, this.publicConfig);
-  }
+  constructor(private readonly config: PasswordAuthConfig) {}
 
   isEnabled(): boolean {
     return this.config.enabled;
   }
 
-  async handleRoute(req: Request, url: URL, server: RequestIPProvider | null): Promise<Response | null> {
+  async handleRoute(req: Request, url: URL): Promise<Response | null> {
     if (url.pathname === STATUS_PATH) {
       return Response.json(
         {
@@ -249,9 +201,9 @@ export class AuthManager {
     if (url.pathname === LOGIN_PATH) {
       if (!this.config.password_hash) return setupErrorResponse();
       if (req.method === 'GET') {
-        return this.isAuthenticated(req) ? redirect(this.getBasePath()) : renderLoginPage();
+        return this.isAuthenticated(req) ? redirect('/') : renderLoginPage();
       }
-      if (req.method === 'POST') return this.handleLogin(req, server);
+      if (req.method === 'POST') return this.handleLogin(req);
       return new Response('Method Not Allowed', {
         status: 405,
         headers: { 'Allow': 'GET, POST' },
@@ -265,7 +217,7 @@ export class AuthManager {
           headers: { 'Allow': 'GET, POST' },
         });
       }
-      return redirect(this.getBasePath(), { 'Set-Cookie': this.buildCookie('', 0) });
+      return redirect('/', { 'Set-Cookie': this.buildCookie('', 0) });
     }
 
     if (url.pathname.startsWith('/auth/')) {
@@ -287,7 +239,7 @@ export class AuthManager {
     return this.isAuthenticated(req) ? null : unauthorizedResponse();
   }
 
-  private async handleLogin(req: Request, server: RequestIPProvider | null): Promise<Response> {
+  private async handleLogin(req: Request): Promise<Response> {
     let password = '';
 
     try {
@@ -300,12 +252,11 @@ export class AuthManager {
 
     const ok = await this.verifyPassword(password);
     if (!ok) {
-      const ip = this.resolveIp(req, server);
-      writeAuthLog(`MARBLE_AUTH_FAIL ip=${ip} path=${LOGIN_PATH} reason=bad_password`);
+      console.warn(`[auth] Login failed — bad password`);
       return renderLoginPage('Invalid password.');
     }
 
-    return redirect(this.getBasePath(), { 'Set-Cookie': this.createSessionCookie() });
+    return redirect('/', { 'Set-Cookie': this.createSessionCookie() });
   }
 
   private async verifyPassword(password: string): Promise<boolean> {
@@ -359,6 +310,6 @@ export class AuthManager {
   }
 }
 
-export function createAuthManager(config: PasswordAuthConfig, publicConfig: PublicConfig, hiddenEntryPath: string): AuthManager {
-  return new AuthManager(config, publicConfig, hiddenEntryPath);
+export function createAuthManager(config: PasswordAuthConfig): AuthManager {
+  return new AuthManager(config);
 }

@@ -13,6 +13,13 @@ data/
 .DS_Store
 nul
 
+# Docs (all except README)
+docs/
+PLAN/
+progress.md
+*.md
+!README.md
+
 # mkcert local HTTPS certs
 web/key.pem
 web/cert.pem

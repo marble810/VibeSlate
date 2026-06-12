@@ -12,14 +12,6 @@ export default defineConfig(({ command }) => {
     ? process.env.MARBLE_PWA_ENABLED === 'true'
     : process.env.MARBLE_PWA_ENABLED !== 'false';
 
-  // Hidden entry: when set, PWA uses the hidden path as start_url and scope.
-  // Example: MARBLE_HIDDEN_ENTRY_PATH="portal" → start_url: "/portal/", scope: "/portal/"
-  const hiddenPath = process.env.MARBLE_HIDDEN_ENTRY_PATH
-    ? '/' + process.env.MARBLE_HIDDEN_ENTRY_PATH.replace(/^\/+/, '').replace(/\/+$/, '')
-    : '';
-  const startUrl = hiddenPath ? hiddenPath + '/' : '/';
-  const scope = hiddenPath ? hiddenPath + '/' : '/';
-
   return {
     plugins: [
       svelte(),
@@ -27,12 +19,12 @@ export default defineConfig(({ command }) => {
         disable: !pwaEnabled,
         registerType: 'autoUpdate',
         manifest: {
-          id: scope,
+          id: '/',
           name: 'Marble Panel',
           short_name: 'Marble Panel',
           description: 'AI Provider Usage & System Dashboard',
-          start_url: startUrl,
-          scope,
+          start_url: '/',
+          scope: '/',
           lang: 'zh-CN',
           theme_color: '#000000',
           background_color: '#000000',

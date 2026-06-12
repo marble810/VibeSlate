@@ -13,6 +13,13 @@ server/auth.json
 server/auth.jsonc
 data/
 
+# Docs
+docs/
+PLAN/
+progress.md
+*.md
+!README.md
+
 # Local TLS keys/certs
 *.pem
 *.key
