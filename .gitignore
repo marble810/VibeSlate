@@ -13,12 +13,16 @@ data/
 .DS_Store
 nul
 
-# Docs (all except README)
+# Docs (tracked entrypoints only)
 docs/
 PLAN/
 progress.md
 *.md
 !README.md
+!PLAN/
+!PLAN/**/*.md
+!docs/
+!docs/**/*.md
 
 # mkcert local HTTPS certs
 web/key.pem
@@ -30,3 +34,4 @@ web/cert.pem
 # Local Docker compose copy for deployment
 docker/docker-compose.yml
 !docker/docker-compose.example.yml
+ROADMAP.md

@@ -10,7 +10,7 @@
 | M4 | 真实数据 | DeepSeek Platform API + OpenAI WHAM + OpenCode Go scraping，独立 SSE 事件 |
 | M5 | 认证 UX | Auto-discovery、config.example.jsonc、JSONC 支持 |
 | M6 | PWA | Manifest（fullscreen + maskable icons + apple-touch-icon）、Service Worker（autoUpdate + precache + skipWaiting + clientsClaim）、Footer SW 状态指示、Wake Lock、动态 viewport polyfill、离线可用验证通过、Lighthouse PWA 审计通过、Install 可触发、standalone 无浏览器 chrome |
-| M7 | Docker | 单容器部署，`docker compose run --rm init` 初始化，`docker:up`/`docker:smoke` 辅助验证 |
+| M7 | Docker | 单容器部署，compose 层配置 provider/auth/TLS，`docker:up`/`docker:smoke` 辅助验证 |
 
 ---
 
@@ -21,10 +21,10 @@
 - [x] 基座 `oven/bun:1-slim`（两阶段：frontend build → runtime）
 - [x] Web dist 复制到 `/app/web/dist`，server 从容器内候选路径读取
 - [x] Runtime 端口统一为 `12001`，容器内 `HOST=0.0.0.0`
-- [x] `docker:init` 作为 Bun wrapper 调起 `docker compose run --rm init`
 - [x] `docker:up` 启动 compose stack（GHCR image + host port mapping）
 - [x] `docker:smoke` 验证 app 运行、config 挂载、端口映射
 - [x] 所有配置通过本地 `docker/docker-compose.yml` 的 environment 设置，无外部 config 文件
+- [x] 可选密码保护与 TLS 都通过 `docker/docker-compose.yml` 的 bool/string 字段启停
 
 ---
 
@@ -33,7 +33,7 @@
 - [x] 应用层登录页 `/auth/login`（GET 登录页 + POST 验证）、`/auth/logout`、`/auth/status`
 - [x] SSE 和静态应用入口 session 校验
 - [x] 密码只保存 Argon2id hash（`Bun.password.verify`），session cookie HMAC-SHA256 签名
-- [x] Docker 通过 `data/docker/server.config.json` 只读挂载读取 auth 配置
+- [x] Docker 通过 `docker/docker-compose.yml` environment 读取 auth 配置
 - [ ] 支持首次启动初始化密码与后续修改密码
 
 ---
@@ -83,13 +83,13 @@
 - [x] 公开项目名切换为 `VibeSlate`
 - [x] Docker 公开部署改为 `docker/docker-compose.example.yml` 模板复制流程
 - [x] 增加纯 shell / PowerShell 的 Codex 凭证打印脚本
-- [x] 增加 `docker compose run --rm init` 容器内初始化入口
+- [x] 统一 Docker Quick Start、helper 输出与 compose 配置文案为单一路径
 - [x] Dockerfile OCI metadata 与许可证对齐到 `AGPL-3.0-only`
 - [x] `docker:up` 只启动 `app`，`docker:smoke` 同时覆盖 HTTP / HTTPS runtime
 - [x] 本机 source-built Docker runtime 验证完成（no-auth baseline、auth login、LAN HTTPS、SSE、`docker:smoke`）
 - [x] GitHub repo rename 到 `marble810/vibeslate` 且 visibility 切到 `PUBLIC`
 - [x] 增加 GHCR alpha workflow 并确认在新 repo 可见
 - [x] `v0.1.0-alpha.1` tag、GHCR 多架构镜像发布与公开 pull 验证完成
-- [x] clean checkout 公开仓库 + 公开镜像 Docker-only 主路径验证完成（helper、init、`up -d app`、首页、SSE heartbeat、日志）
+- [ ] 移除 `init` 后，clean checkout 公开仓库 + 公开镜像 Docker-only 主路径需要按 compose 层 auth/TLS 配置重新验收
 - [x] OpenAI helper 支持 `--state-file`，用于处理 `~/.codex/auth.json` 落后于 runtime 持久化 token 的机器
 - [ ] `docker/GetCodexAuthInfo.ps1` 在 Windows / PowerShell Core 上完成人工实跑验证
