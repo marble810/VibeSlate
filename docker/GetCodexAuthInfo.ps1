@@ -1,7 +1,9 @@
 param(
   [string]$AuthFile = (Join-Path $HOME ".codex/auth.json"),
   [string]$StateFile = "",
-  [switch]$Redact
+  [switch]$Redact,
+  [ValidateSet("yaml", "env")]
+  [string]$Format = "yaml"
 )
 
 function Fail($Message) {
@@ -17,6 +19,10 @@ function Mask($Value) {
   $prefix = $Value.Substring(0, 8)
   $suffix = $Value.Substring($Value.Length - 4, 4)
   return "$prefix...$suffix"
+}
+
+function Escape-YamlDoubleQuoted($Value) {
+  return $Value.Replace('\', '\\').Replace('"', '\"')
 }
 
 if (-not (Test-Path -LiteralPath $AuthFile)) {
@@ -75,5 +81,11 @@ Write-Output "# Codex auth file: $AuthFile"
 if (-not [string]::IsNullOrWhiteSpace($StateFile)) {
   Write-Output "# Runtime state file: $StateFile"
 }
-Write-Output "OPENAI_REFRESH_TOKEN=$refreshToken"
-Write-Output "OPENAI_ACCOUNT_ID=$accountId"
+if ($Format -eq "env") {
+  Write-Output "OPENAI_REFRESH_TOKEN=$refreshToken"
+  Write-Output "OPENAI_ACCOUNT_ID=$accountId"
+} else {
+  Write-Output "# Paste under x-vibeslate-env in docker/docker-compose.yml"
+  Write-Output "  OPENAI_REFRESH_TOKEN: ""$(Escape-YamlDoubleQuoted $refreshToken)"""
+  Write-Output "  OPENAI_ACCOUNT_ID: ""$(Escape-YamlDoubleQuoted $accountId)"""
+}

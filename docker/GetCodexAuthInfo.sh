@@ -3,10 +3,10 @@ set -eu
 
 usage() {
   cat <<'EOF'
-Usage: ./docker/GetCodexAuthInfo.sh [--auth-file <path>] [--redact]
-       ./docker/GetCodexAuthInfo.sh [--state-file <path>] [--auth-file <path>] [--redact]
+Usage: ./docker/GetCodexAuthInfo.sh [--auth-file <path>] [--state-file <path>] [--redact] [--format yaml|env]
 
-Reads ~/.codex/auth.json and prints compose-ready OpenAI credential lines.
+Reads ~/.codex/auth.json and prints paste-ready OpenAI credentials.
+Default output format is YAML for docker/docker-compose.yml.
 EOF
 }
 
@@ -33,9 +33,14 @@ extract_json_value() {
   printf '%s' "$JSON_ONE_LINE" | sed -n "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p"
 }
 
+escape_yaml_double_quotes() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 AUTH_FILE="${HOME}/.codex/auth.json"
 STATE_FILE=""
 REDACT=0
+FORMAT="yaml"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -52,6 +57,11 @@ while [ "$#" -gt 0 ]; do
     --redact)
       REDACT=1
       shift
+      ;;
+    --format)
+      [ "$#" -ge 2 ] || fail 'missing value for --format'
+      FORMAT="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -86,6 +96,14 @@ fi
 [ -n "$REFRESH_TOKEN" ] || fail "tokens.refresh_token not found in $AUTH_FILE"
 [ -n "$ACCOUNT_ID" ] || fail "tokens.account_id not found in $AUTH_FILE"
 
+case "$FORMAT" in
+  yaml|env)
+    ;;
+  *)
+    fail "unknown format: $FORMAT"
+    ;;
+esac
+
 if [ "$REDACT" -eq 1 ]; then
   REFRESH_TOKEN=$(mask "$REFRESH_TOKEN")
   ACCOUNT_ID=$(mask "$ACCOUNT_ID")
@@ -95,5 +113,11 @@ printf '# Codex auth file: %s\n' "$AUTH_FILE"
 if [ -n "$STATE_FILE" ]; then
   printf '# Runtime state file: %s\n' "$STATE_FILE"
 fi
-printf 'OPENAI_REFRESH_TOKEN=%s\n' "$REFRESH_TOKEN"
-printf 'OPENAI_ACCOUNT_ID=%s\n' "$ACCOUNT_ID"
+if [ "$FORMAT" = "env" ]; then
+  printf 'OPENAI_REFRESH_TOKEN=%s\n' "$REFRESH_TOKEN"
+  printf 'OPENAI_ACCOUNT_ID=%s\n' "$ACCOUNT_ID"
+else
+  printf '# Paste under x-vibeslate-env in docker/docker-compose.yml\n'
+  printf '  OPENAI_REFRESH_TOKEN: "%s"\n' "$(escape_yaml_double_quotes "$REFRESH_TOKEN")"
+  printf '  OPENAI_ACCOUNT_ID: "%s"\n' "$(escape_yaml_double_quotes "$ACCOUNT_ID")"
+fi
