@@ -45,5 +45,14 @@
     "session_ttl_seconds": 604800,
     "cookie_name": "marble_session",
     "cookie_secure": true
+  },
+
+  // ── 可选：TLS / LAN HTTPS（默认关闭）──
+  // 开启后，cert/key/root CA 路径都必须可读。
+  "tls": {
+    "enabled": false,
+    "cert_file": "/absolute/path/to/cert.pem",
+    "key_file": "/absolute/path/to/key.pem",
+    "root_ca_file": "/absolute/path/to/rootCA.pem"
   }
 }

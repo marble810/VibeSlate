@@ -17,6 +17,7 @@ export interface ServerConfig {
   opencode_auth_cookie: string;
   ui: UiConfig;
   auth: PasswordAuthConfig;
+  tls: TlsConfig;
 }
 
 export interface UiConfig {
@@ -29,6 +30,13 @@ export interface PasswordAuthConfig {
   session_ttl_seconds: number;
   cookie_name: string;
   cookie_secure: boolean;
+}
+
+export interface TlsConfig {
+  enabled: boolean;
+  cert_file: string;
+  key_file: string;
+  root_ca_file: string;
 }
 
 // ── JSONC parser (strips comments) ──
@@ -190,6 +198,10 @@ export function loadConfig(): ServerConfig {
         ...asObject(fileCfg.auth),
         ...asObject(parsed.auth),
       },
+      tls: {
+        ...asObject(fileCfg.tls),
+        ...asObject(parsed.tls),
+      },
       ui: {
         ...asObject(fileCfg.ui),
         ...asObject(parsed.ui),
@@ -205,6 +217,7 @@ export function loadConfig(): ServerConfig {
   const opencodeCookie = (fileCfg?.opencode_auth_cookie as string) || '';
   const uiCfg = asObject(fileCfg?.ui);
   const authCfg = asObject(fileCfg?.auth);
+  const tlsCfg = asObject(fileCfg?.tls);
 
   let finalOpencodeWsId = opencodeWsId;
   let finalOpencodeCookie = opencodeCookie;
@@ -252,6 +265,22 @@ export function loadConfig(): ServerConfig {
     authCfg.cookie_secure,
     parseBoolean(process.env.AUTH_COOKIE_SECURE, true),
   );
+  const tlsEnabled = parseBoolean(
+    tlsCfg.enabled,
+    parseBoolean(process.env.TLS_ENABLED, false),
+  );
+  const tlsCertFile =
+    (tlsCfg.cert_file as string | undefined) ||
+    process.env.TLS_CERT_FILE ||
+    '/app/data/certs/cert.pem';
+  const tlsKeyFile =
+    (tlsCfg.key_file as string | undefined) ||
+    process.env.TLS_KEY_FILE ||
+    '/app/data/certs/key.pem';
+  const tlsRootCaFile =
+    (tlsCfg.root_ca_file as string | undefined) ||
+    process.env.TLS_ROOT_CA_FILE ||
+    '/app/data/certs/rootCA.pem';
   const customAccent = parseHexColor(
     uiCfg.custom_accent ?? process.env.UI_CUSTOM_ACCENT,
     '#8b5cf6',
@@ -274,7 +303,8 @@ export function loadConfig(): ServerConfig {
   }
   if (authEnabled && !authPasswordHash) {
     console.warn('[config] Password auth is enabled, but auth.password_hash is missing.');
-    console.warn('  → Run docker compose run --rm init to generate a hash');
+    console.warn('  → Set AUTH_PASSWORD_HASH in docker/docker-compose.yml');
+    console.warn('  → Example from a Bun checkout: bun -e \'console.log(await Bun.password.hash("change-me"))\'');
   }
 
   return {
@@ -293,6 +323,12 @@ export function loadConfig(): ServerConfig {
       session_ttl_seconds: authSessionTtlSeconds,
       cookie_name: authCookieName,
       cookie_secure: authCookieSecure,
+    },
+    tls: {
+      enabled: tlsEnabled,
+      cert_file: tlsCertFile,
+      key_file: tlsKeyFile,
+      root_ca_file: tlsRootCaFile,
     },
   };
 }

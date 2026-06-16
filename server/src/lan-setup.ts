@@ -11,9 +11,6 @@
 
 import { existsSync, readFileSync } from "node:fs";
 
-const CERT_DIR = "/app/data/certs";
-const ROOT_CA_PEM = `${CERT_DIR}/rootCA.pem`;
-
 const PAGE_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,61 +97,18 @@ const PAGE_HTML = `<!DOCTYPE html>
 /**
  * Generate the /lan-setup page HTML with embedded QR code.
  */
-async function renderSetupPage(): Promise<string> {
+async function renderSetupPage(setupUrl: string, appUrl: string): Promise<string> {
   let qrSvg = "";
   try {
     const QRCode = await import("qrcode");
-    const lanIp = detectLanIp();
-    const setupUrl = `http://${lanIp}:12001/lan-setup`;
     qrSvg = await QRCode.toString(setupUrl, { type: "svg", width: 200 });
   } catch {
     qrSvg = '<p style="color:#666;">(QR unavailable)</p>';
   }
 
-  const lanIp = detectLanIp();
-  const appUrl = lanIp
-    ? `https://${lanIp}:12001`
-    : "https://<vibeslate-ip>:12001";
-
   return PAGE_HTML
     .replace("{{QR_SVG}}", qrSvg)
     .replace("{{APP_URL}}", appUrl);
-}
-
-function detectLanIp(): string {
-  try {
-    const { networkInterfaces } = require("node:os") as typeof import("node:os");
-    const ifaces = networkInterfaces();
-
-    for (const [, addrs] of Object.entries(ifaces)) {
-      if (!addrs) continue;
-      for (const addr of addrs) {
-        if (
-          !addr.internal &&
-          addr.family === "IPv4" &&
-          !addr.address.startsWith("172.")
-        ) {
-          if (
-            addr.address.startsWith("192.168.") ||
-            addr.address.startsWith("10.")
-          ) {
-            return addr.address;
-          }
-        }
-      }
-    }
-
-    for (const [, addrs] of Object.entries(ifaces)) {
-      if (!addrs) continue;
-      for (const addr of addrs) {
-        if (!addr.internal && addr.family === "IPv4") return addr.address;
-      }
-    }
-  } catch {
-    // os.networkInterfaces may not be available
-  }
-
-  return "localhost";
 }
 
 /**
@@ -162,18 +116,23 @@ function detectLanIp(): string {
  *
  * Returns a Response, or null to let the caller fall through.
  */
-export async function handleLanSetup(req: Request): Promise<Response | null> {
+export async function handleLanSetup(
+  req: Request,
+  options: { rootCaFile: string },
+): Promise<Response | null> {
   const url = new URL(req.url);
+  const setupUrl = url.origin + '/lan-setup';
+  const appUrl = url.origin;
 
   // GET /lan-setup/download — serve root CA file
   if (url.pathname === "/lan-setup/download") {
-    if (!existsSync(ROOT_CA_PEM)) {
-      return new Response("No CA certificate configured. Run setup first.", {
+    if (!existsSync(options.rootCaFile)) {
+      return new Response("No CA certificate configured. Set TLS_ROOT_CA_FILE to a mounted root CA file.", {
         status: 404,
       });
     }
 
-    const pemBytes = readFileSync(ROOT_CA_PEM);
+    const pemBytes = readFileSync(options.rootCaFile);
     const ua = (req.headers.get("user-agent") || "").toLowerCase();
 
     let filename = "VibeSlate-Local-CA.pem";
@@ -199,7 +158,13 @@ export async function handleLanSetup(req: Request): Promise<Response | null> {
 
   // GET /lan-setup — render setup page
   if (url.pathname === "/lan-setup") {
-    const html = await renderSetupPage();
+    if (!existsSync(options.rootCaFile)) {
+      return new Response("No CA certificate configured. Set TLS_ROOT_CA_FILE to a mounted root CA file.", {
+        status: 404,
+      });
+    }
+
+    const html = await renderSetupPage(setupUrl, appUrl);
     return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

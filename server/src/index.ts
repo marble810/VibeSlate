@@ -7,7 +7,6 @@ import { createAuthManager } from './auth';
 import { handleLanSetup } from './lan-setup';
 import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
 import { statSync } from 'node:fs';
-import { join } from 'node:path';
 
 // ── Config ──
 const config = loadConfig();
@@ -18,22 +17,23 @@ const HOST = process.env.HOST || 'localhost';
 const DEEPSEEK_INTERVAL = (config.query_interval_seconds || 60) * 1000;
 
 // ── TLS support ──
-const CERT_DIR = '/app/data/certs';
-let tlsCert: string | undefined = process.env.TLS_CERT_FILE;
-let tlsKey: string | undefined = process.env.TLS_KEY_FILE;
+let tlsCert: string | undefined;
+let tlsKey: string | undefined;
 
-// Auto-detect mkcert-generated certs
-if (!tlsCert || !tlsKey) {
-  const autoCert = join(CERT_DIR, 'cert.pem');
-  const autoKey = join(CERT_DIR, 'key.pem');
+if (config.tls.enabled) {
   try {
-    if (statSync(autoCert).isFile() && statSync(autoKey).isFile()) {
-      tlsCert = autoCert;
-      tlsKey = autoKey;
-      console.log(`[tls] Auto-detected certs in ${CERT_DIR}/`);
+    if (!statSync(config.tls.cert_file).isFile()) {
+      throw new Error(`TLS cert file is not a regular file: ${config.tls.cert_file}`);
     }
-  } catch {
-    // no auto certs — stay HTTP
+    if (!statSync(config.tls.key_file).isFile()) {
+      throw new Error(`TLS key file is not a regular file: ${config.tls.key_file}`);
+    }
+    tlsCert = config.tls.cert_file;
+    tlsKey = config.tls.key_file;
+    console.log(`[tls] Enabled with cert ${tlsCert} and key ${tlsKey}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`[tls] TLS_ENABLED=true but the configured certificate files are unavailable. ${message}`);
   }
 }
 
@@ -275,7 +275,9 @@ const server = Bun.serve({
 
     // LAN cert setup page
     if (url.pathname.startsWith('/lan-setup')) {
-      const lanPage = await handleLanSetup(req);
+      const lanPage = await handleLanSetup(req, {
+        rootCaFile: config.tls.root_ca_file,
+      });
       if (lanPage) return lanPage;
     }
 
