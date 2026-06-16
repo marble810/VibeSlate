@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { connected, swStatus, wakeLockStatus, theme } from '$lib/stores';
   import type { ThemeId } from '$lib/theme';
+  import { DEFAULT_THEME } from '$lib/theme';
   import type { WakeLockStatus } from '$lib/types';
   import EinkCheckIcon from './EinkCheckIcon.svelte';
   import EinkCrossIcon from './EinkCrossIcon.svelte';
@@ -10,7 +11,7 @@
   let isConnected = $state(false);
   let swState = $state('unsupported');
   let wakeState = $state<WakeLockStatus>('unsupported');
-  let currentTheme = $state<ThemeId>('marble-purple');
+  let currentTheme = $state<ThemeId>(DEFAULT_THEME);
 
   const isEink = $derived(currentTheme === 'eink');
 

@@ -4,8 +4,10 @@ import { fetchOpenAIData } from './openai';
 import { fetchOpenCodeGoData } from './opencode';
 import { loadConfig } from './config';
 import { createAuthManager } from './auth';
+import { handleLanSetup } from './lan-setup';
 import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
 import { statSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ── Config ──
 const config = loadConfig();
@@ -16,12 +18,26 @@ const HOST = process.env.HOST || 'localhost';
 const DEEPSEEK_INTERVAL = (config.query_interval_seconds || 60) * 1000;
 
 // ── TLS support ──
-const TLS_CERT_FILE = process.env.TLS_CERT_FILE;
-const TLS_KEY_FILE = process.env.TLS_KEY_FILE;
-const useTls = !!(TLS_CERT_FILE && TLS_KEY_FILE);
-if (useTls) {
-  console.log(`[tls] TLS enabled — cert: ${TLS_CERT_FILE}, key: ${TLS_KEY_FILE}`);
+const CERT_DIR = '/app/data/certs';
+let tlsCert: string | undefined = process.env.TLS_CERT_FILE;
+let tlsKey: string | undefined = process.env.TLS_KEY_FILE;
+
+// Auto-detect mkcert-generated certs
+if (!tlsCert || !tlsKey) {
+  const autoCert = join(CERT_DIR, 'cert.pem');
+  const autoKey = join(CERT_DIR, 'key.pem');
+  try {
+    if (statSync(autoCert).isFile() && statSync(autoKey).isFile()) {
+      tlsCert = autoCert;
+      tlsKey = autoKey;
+      console.log(`[tls] Auto-detected certs in ${CERT_DIR}/`);
+    }
+  } catch {
+    // no auto certs — stay HTTP
+  }
 }
+
+const useTls = !!(tlsCert && tlsKey);
 
 // ── Cached provider data ──
 let deepseekCache: DeepSeekData | null = null;
@@ -145,8 +161,8 @@ const server = Bun.serve({
   idleTimeout: 0, // SSE connections must stay open indefinitely
   ...(useTls ? {
     tls: {
-      key: Bun.file(TLS_KEY_FILE!),
-      cert: Bun.file(TLS_CERT_FILE!),
+      key: Bun.file(tlsKey!),
+      cert: Bun.file(tlsCert!),
     },
   } : {}),
   async fetch(req: Request) {
@@ -257,6 +273,12 @@ const server = Bun.serve({
       });
     }
 
+    // LAN cert setup page
+    if (url.pathname.startsWith('/lan-setup')) {
+      const lanPage = await handleLanSetup(req);
+      if (lanPage) return lanPage;
+    }
+
     // Static file serving
     if (WEB_DIST) {
       let pathname = url.pathname;
@@ -301,7 +323,7 @@ const server = Bun.serve({
 });
 
 const protocol = useTls ? 'https' : 'http';
-console.log(`Marble Panel server running on ${protocol}://${HOST}:${server.port}`);
+console.log(`VibeSlate server running on ${protocol}://${HOST}:${server.port}`);
 console.log(
   WEB_DIST ? `Serving static files from: ${WEB_DIST}` : 'Warning: No web dist — static serving disabled',
 );

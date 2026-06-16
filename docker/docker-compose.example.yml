@@ -1,0 +1,57 @@
+name: vibeslate
+
+# Public alpha template.
+# Copy this file to docker/docker-compose.yml, then fill in your local credentials.
+
+x-vibeslate-env: &vibeslate-env
+  HOST: 0.0.0.0
+  PORT: "12001"
+
+  # Provider credentials
+  # DeepSeek: browser -> platform.deepseek.com -> DevTools -> Authorization header
+  DEEPSEEK_PLATFORM_TOKEN: ""
+  # OpenAI: run ./docker/GetCodexAuthInfo.sh or ./docker/GetCodexAuthInfo.ps1
+  OPENAI_REFRESH_TOKEN: ""
+  OPENAI_ACCOUNT_ID: ""
+  # OpenCode Go: optional
+  OPENCODE_WORKSPACE_ID: ""
+  OPENCODE_AUTH_COOKIE: ""
+
+  # Optional password auth
+  AUTH_ENABLED: "false"
+  AUTH_PASSWORD_HASH: ""
+  AUTH_COOKIE_SECURE: "true"
+
+  # UI
+  UI_CUSTOM_ACCENT: "#8b5cf6"
+
+  # Runtime token persistence
+  OPENAI_TOKEN_STATE_FILE: /app/data/state/openai-token.json
+
+services:
+  app:
+    image: ghcr.io/marble810/vibeslate:v0.1.0-alpha.1
+    container_name: vibeslate
+    ports:
+      - "12001:12001"
+    environment: *vibeslate-env
+    volumes:
+      - ../data/docker/state:/app/data/state
+      - ../data/docker/certs:/app/data/certs
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  init:
+    image: ghcr.io/marble810/vibeslate:v0.1.0-alpha.1
+    profiles: ["setup"]
+    environment: *vibeslate-env
+    volumes:
+      - ../data/docker/state:/app/data/state
+      - ../data/docker/certs:/app/data/certs
+    entrypoint: ["bun", "src/setup.ts"]
+    stdin_open: true
+    tty: true

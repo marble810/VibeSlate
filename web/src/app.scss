@@ -1,4 +1,4 @@
-/* ===== Marble Panel — Global Styles ===== */
+/* ===== VibeSlate — Global Styles ===== */
 
 /* ── Base Tokens (non-color: spacing, typography, shape) ── */
 :root {
@@ -47,9 +47,9 @@
   initial-value: 100%;
 }
 
-/* ── Theme: Marble Purple (default) ── */
+/* ── Theme: Default (black + violet baseline) ── */
 :root,
-:root[data-theme="marble-purple"],
+:root[data-theme="default"],
 :root[data-theme="custom-accent"] {
   /* Surface & Content */
   --bg: #000000;
@@ -81,7 +81,7 @@
   --status-glow-warning: 0 0 4px var(--warning);
 }
 
-/* ── Theme: Custom Accent (inherits Marble Purple surfaces) ── */
+/* ── Theme: Custom Accent (inherits Default surfaces) ── */
 :root[data-theme="custom-accent"] {
   --accent: var(--custom-accent);
   --accent-dim: color-mix(in srgb, var(--custom-accent) 85%, #000000);

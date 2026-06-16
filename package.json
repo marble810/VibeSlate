@@ -1,16 +1,22 @@
 {
-  "name": "marble-panel",
+  "name": "vibeslate",
   "private": true,
   "workspaces": ["server", "web"],
   "scripts": {
-    "dev": "bun scripts/dev.ts",
+    "# ── Development ──": "",
+    "dev": "bun scripts/dev/start-dev.ts",
     "dev:server": "bun run --cwd server dev",
     "dev:web": "bun run --cwd web dev",
     "build": "bun run --cwd web build",
     "preview": "bun run build && bun run --cwd server start",
+    "# ── Docker Deployment ──": "",
     "docker:init": "bun scripts/docker-init.ts",
     "docker:up": "bun scripts/docker-up.ts",
-    "docker:smoke": "bun scripts/docker-smoke.ts"
+    "docker:smoke": "bun scripts/docker-smoke.ts",
+    "# ── Utilities ──": "",
+    "setup": "bun server/src/setup.ts",
+    "help": "bun scripts/help.ts",
+    "codex:auth": "bun scripts/extract-codex-openai-credentials.ts"
   },
   "dependencies": {
     "systeminformation": "^5.31.7",

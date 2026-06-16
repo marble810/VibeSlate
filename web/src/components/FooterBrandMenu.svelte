@@ -2,10 +2,10 @@
   import { onDestroy } from 'svelte';
   import { DropdownMenu } from 'bits-ui';
   import { theme } from '$lib/stores';
-  import type { ThemeId } from '$lib/theme';
+  import { DEFAULT_THEME, type ThemeId } from '$lib/theme';
   import EinkCheckIcon from './EinkCheckIcon.svelte';
 
-  let currentTheme = $state<ThemeId>('marble-purple');
+  let currentTheme = $state<ThemeId>(DEFAULT_THEME);
   const unsubscribeTheme = theme.subscribe((val) => { currentTheme = val; });
 
   function setTheme(id: ThemeId) {
@@ -21,7 +21,7 @@
   <DropdownMenu.Root>
     <DropdownMenu.Trigger class="brand-trigger">
       <img class="logo" src="/icons/icon-192.png" alt="" />
-      <span class="version">marble-panel</span>
+      <span class="version">vibeslate</span>
     </DropdownMenu.Trigger>
     <DropdownMenu.Portal>
       <DropdownMenu.Content
@@ -37,13 +37,13 @@
             <DropdownMenu.Item
               class="brand-menu-item"
               closeOnSelect={false}
-              onSelect={() => setTheme('marble-purple')}
+              onSelect={() => setTheme('default')}
             >
               <span class="item-main">
-                <span class="theme-swatch purple"></span>
-                <span class="item-label">Marble Purple</span>
+                <span class="theme-swatch default"></span>
+                <span class="item-label">Default</span>
               </span>
-              {#if currentTheme === 'marble-purple'}
+              {#if currentTheme === 'default'}
                 <span class="item-check">
                   <EinkCheckIcon size="12px" />
                 </span>
@@ -242,7 +242,7 @@
     border-radius: 50%;
     flex-shrink: 0;
 
-    &.purple {
+    &.default {
       background: #8b5cf6;
     }
 

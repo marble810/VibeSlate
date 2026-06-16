@@ -3,7 +3,7 @@ import { spawn } from "bun";
 import { join } from "node:path";
 
 const bun = process.execPath;
-const root = join(import.meta.dirname, "..");
+const root = join(import.meta.dirname, "../..");
 
 const VITE_PORT = 5173;
 

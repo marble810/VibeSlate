@@ -259,22 +259,22 @@ export function loadConfig(): ServerConfig {
 
   if (!dsToken) {
     console.warn('[config] DeepSeek token not found.');
-    console.warn('  → Create server/config.json with: {"deepseek_token": "your-bearer-token"}');
-    console.warn('  → Or install deepseek-monitor-tui (auto-discovered)');
+    console.warn('  → Set DEEPSEEK_PLATFORM_TOKEN in docker/docker-compose.yml for Docker deployments');
+    console.warn('  → Or create server/config.json for local development');
   }
   if (!oaRefresh) {
     console.warn('[config] OpenAI token not found.');
-    console.warn('  → Create server/config.json with: {"openai_refresh_token": "...", "openai_account_id": "..."}');
-    console.warn('  → Or install codex CLI (auto-discovered from ~/.codex/auth.json)');
+    console.warn('  → Set OPENAI_REFRESH_TOKEN and OPENAI_ACCOUNT_ID in docker/docker-compose.yml');
+    console.warn('  → Or create server/config.json for local development');
   }
   if (!finalOpencodeWsId || !finalOpencodeCookie) {
     console.warn('[config] OpenCode Go credentials not found.');
-    console.warn('  → Create server/config.json with: {"opencode_workspace_id": "wrk_...", "opencode_auth_cookie": "..."}');
-    console.warn('  → See config.example.jsonc for detailed instructions');
+    console.warn('  → Set OPENCODE_WORKSPACE_ID and OPENCODE_AUTH_COOKIE in docker/docker-compose.yml');
+    console.warn('  → Or see config.example.jsonc for local development instructions');
   }
   if (authEnabled && !authPasswordHash) {
     console.warn('[config] Password auth is enabled, but auth.password_hash is missing.');
-    console.warn('  → Generate one with: bun -e \'console.log(await Bun.password.hash("change-me"))\'');
+    console.warn('  → Run docker compose run --rm init to generate a hash');
   }
 
   return {

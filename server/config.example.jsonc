@@ -1,6 +1,6 @@
 {
   // ═══════════════════════════════════════════════════════
-  // Marble Panel — 服务端配置
+  // VibeSlate — 服务端配置
   // 复制此文件为 config.jsonc 并填入你的认证信息
   // ═══════════════════════════════════════════════════════
 
@@ -14,8 +14,8 @@
   // 获取方式：安装 Codex CLI/App → 登录 ChatGPT 账号后，
   // 从 ~/.codex/auth.json → tokens.refresh_token 和 tokens.account_id 复制
   // 或运行宿主机脚本：
-  //   macOS / Linux: ./scripts/print-codex-openai-env.sh
-  //   PowerShell:    .\scripts\print-codex-openai-env.ps1
+  //   macOS / Linux: ./docker/GetCodexAuthInfo.sh
+  //   PowerShell:    .\docker\GetCodexAuthInfo.ps1
   "openai_refresh_token": "rt.xxx...",
   "openai_account_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
 

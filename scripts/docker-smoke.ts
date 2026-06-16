@@ -1,16 +1,14 @@
 /**
- * Marble Panel — Docker Smoke Test
- *
- * Validates Docker deployment end-to-end.
- *
- * Usage:
- *   bun run docker:smoke
+ * VibeSlate — Docker Smoke Test
  */
 
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { spawn } from "bun";
 
 const ROOT = join(import.meta.dirname, "..");
+const COMPOSE_FILE = join(ROOT, "docker", "docker-compose.yml");
+const COMPOSE_EXAMPLE = join(ROOT, "docker", "docker-compose.example.yml");
 
 interface SmokeResult {
   check: string;
@@ -82,9 +80,15 @@ function printSummary() {
 }
 
 async function main() {
+  if (!existsSync(COMPOSE_FILE)) {
+    console.log("\x1b[31m[docker-smoke]\x1b[0m Missing docker/docker-compose.yml.");
+    console.log(`Copy ${COMPOSE_EXAMPLE} to ${COMPOSE_FILE} before running smoke tests.`);
+    process.exit(1);
+  }
+
   console.log("");
   console.log("  \x1b[1;36m╔══════════════════════════════════════════════════════╗");
-  console.log("  ║       Marble Panel — Docker Smoke Test              ║");
+  console.log("  ║         VibeSlate — Docker Smoke Test               ║");
   console.log("  ╚══════════════════════════════════════════════════════╝\x1b[0m");
   console.log("");
 
@@ -98,12 +102,29 @@ async function main() {
 
   // 2. App responds on internal port
   const health = await composeExec("app", ["bun", "-e", `
-    try {
-      const r = await fetch("http://localhost:12001/");
-      process.exit(r.status === 200 || r.status === 401 ? 0 : 1);
-    } catch {
-      process.exit(1);
-    }
+    import fs from "node:fs";
+    import http from "node:http";
+    import https from "node:https";
+
+    const useTls =
+      fs.existsSync("/app/data/certs/cert.pem") &&
+      fs.existsSync("/app/data/certs/key.pem");
+    const client = useTls ? https : http;
+    const req = client.request(
+      {
+        hostname: "localhost",
+        port: 12001,
+        path: "/",
+        method: "GET",
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        process.exit(res.statusCode === 200 || res.statusCode === 401 ? 0 : 1);
+      },
+    );
+
+    req.on("error", () => process.exit(1));
+    req.end();
   `], 10000);
   if (health.exitCode === 0) {
     pass("App responds on port 12001");

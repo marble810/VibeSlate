@@ -66,7 +66,7 @@ function renderLoginPage(error = ''): Response {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Marble Panel Login</title>
+    <title>VibeSlate Login</title>
     <style>
       :root {
         color-scheme: dark;
@@ -141,7 +141,7 @@ function renderLoginPage(error = ''): Response {
   </head>
   <body>
     <main>
-      <h1>Marble Panel</h1>
+      <h1>VibeSlate</h1>
       ${errorMarkup}
       <form method="post" action="${LOGIN_PATH}">
         <input name="password" type="password" autocomplete="current-password" placeholder="Password" autofocus required />

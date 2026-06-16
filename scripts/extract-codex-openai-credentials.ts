@@ -149,7 +149,8 @@ function render(options: Options, credentials: Credentials): string {
         `OPENAI_ACCOUNT_ID=${accountId}`,
         "",
         "Example:",
-        `  OPENAI_REFRESH_TOKEN=${shellQuote(credentials.refreshToken)} OPENAI_ACCOUNT_ID=${shellQuote(credentials.accountId)} bun run docker:init`,
+        `  OPENAI_REFRESH_TOKEN=${shellQuote(credentials.refreshToken)}`,
+        `  OPENAI_ACCOUNT_ID=${shellQuote(credentials.accountId)}`,
       ].join("\n");
   }
 }

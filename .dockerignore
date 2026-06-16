@@ -24,3 +24,7 @@ progress.md
 *.pem
 *.key
 *.crt
+
+# Local Docker compose copy for deployment
+docker/docker-compose.yml
+!docker/docker-compose.example.yml

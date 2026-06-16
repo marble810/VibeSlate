@@ -1,12 +1,12 @@
-export const THEME_IDS = ['marble-purple', 'custom-accent', 'eink'] as const;
+export const THEME_IDS = ['default', 'custom-accent', 'eink'] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = 'marble-purple';
-export const THEME_STORAGE_KEY = 'marble-panel:theme';
+export const DEFAULT_THEME: ThemeId = 'default';
+export const THEME_STORAGE_KEY = 'vibeslate:theme';
 export const DEFAULT_CUSTOM_ACCENT = '#8b5cf6';
 
 const THEME_META_COLORS: Record<ThemeId, string> = {
-  'marble-purple': '#000000',
+  default: '#000000',
   'custom-accent': '#000000',
   eink: '#ffffff',
 };

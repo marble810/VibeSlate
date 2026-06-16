@@ -20,9 +20,9 @@ export default defineConfig(({ command }) => {
         registerType: 'autoUpdate',
         manifest: {
           id: '/',
-          name: 'Marble Panel',
-          short_name: 'Marble Panel',
-          description: 'AI Provider Usage & System Dashboard',
+          name: 'VibeSlate',
+          short_name: 'VibeSlate',
+          description: 'LLM usage and spare-device info slate',
           start_url: '/',
           scope: '/',
           lang: 'zh-CN',
