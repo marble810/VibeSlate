@@ -20,8 +20,6 @@ PLAN/
 progress.md
 *.md
 !README.md
-!PLAN/
-!PLAN/**/*.md
 !docs/
 !docs/**/*.md
 

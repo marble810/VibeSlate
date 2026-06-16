@@ -19,7 +19,12 @@ docker compose -f docker/docker-compose.yml up -d app
 
 默认地址是 `http://localhost:12001`。
 
-用户可编辑的 provider、密码保护、LAN HTTPS 和 UI 设置都放在 `docker/.env` 里；`docker/docker-compose.yml` 只保留 Docker 结构层配置。
+部署时只需要维护两个本地文件：
+
+- `docker/.env`
+  用户配置入口。provider 凭证、密码保护、LAN HTTPS 和 UI 设置都放这里。
+- `docker/docker-compose.yml`
+  Docker 结构层配置。通常只需要从 example 复制一次，不需要日常编辑。
 
 `docker/.env` 中由用户手动填写的主要字段：
 
