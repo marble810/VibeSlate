@@ -288,22 +288,22 @@ export function loadConfig(): ServerConfig {
 
   if (!dsToken) {
     console.warn('[config] DeepSeek token not found.');
-    console.warn('  → Set DEEPSEEK_PLATFORM_TOKEN in docker/docker-compose.yml for Docker deployments');
+    console.warn('  → Set DEEPSEEK_PLATFORM_TOKEN in docker/.env for Docker deployments');
     console.warn('  → Or create server/config.json for local development');
   }
   if (!oaRefresh) {
     console.warn('[config] OpenAI token not found.');
-    console.warn('  → Set OPENAI_REFRESH_TOKEN and OPENAI_ACCOUNT_ID in docker/docker-compose.yml');
+    console.warn('  → Set OPENAI_REFRESH_TOKEN and OPENAI_ACCOUNT_ID in docker/.env');
     console.warn('  → Or create server/config.json for local development');
   }
   if (!finalOpencodeWsId || !finalOpencodeCookie) {
     console.warn('[config] OpenCode Go credentials not found.');
-    console.warn('  → Set OPENCODE_WORKSPACE_ID and OPENCODE_AUTH_COOKIE in docker/docker-compose.yml');
+    console.warn('  → Set OPENCODE_WORKSPACE_ID and OPENCODE_AUTH_COOKIE in docker/.env');
     console.warn('  → Or see config.example.jsonc for local development instructions');
   }
   if (authEnabled && !authPasswordHash) {
     console.warn('[config] Password auth is enabled, but auth.password_hash is missing.');
-    console.warn('  → Set AUTH_PASSWORD_HASH in docker/docker-compose.yml');
+    console.warn('  → Set AUTH_PASSWORD_HASH in docker/.env');
     console.warn('  → Example from a Bun checkout: bun -e \'console.log(await Bun.password.hash("change-me"))\'');
   }
 

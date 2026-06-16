@@ -9,6 +9,8 @@ import { spawn } from "bun";
 const ROOT = join(import.meta.dirname, "..");
 const COMPOSE_FILE = join(ROOT, "docker", "docker-compose.yml");
 const COMPOSE_EXAMPLE = join(ROOT, "docker", "docker-compose.example.yml");
+const ENV_FILE = join(ROOT, "docker", ".env");
+const ENV_EXAMPLE = join(ROOT, "docker", ".env.example");
 
 interface SmokeResult {
   check: string;
@@ -85,6 +87,11 @@ async function main() {
     console.log(`Copy ${COMPOSE_EXAMPLE} to ${COMPOSE_FILE} before running smoke tests.`);
     process.exit(1);
   }
+  if (!existsSync(ENV_FILE)) {
+    console.log("\x1b[31m[docker-smoke]\x1b[0m Missing docker/.env.");
+    console.log(`Copy ${ENV_EXAMPLE} to ${ENV_FILE} before running smoke tests.`);
+    process.exit(1);
+  }
 
   console.log("");
   console.log("  \x1b[1;36m╔══════════════════════════════════════════════════════╗");
@@ -102,13 +109,10 @@ async function main() {
 
   // 2. App responds on internal port
   const health = await composeExec("app", ["bun", "-e", `
-    import fs from "node:fs";
     import http from "node:http";
     import https from "node:https";
 
-    const useTls =
-      fs.existsSync("/app/data/certs/cert.pem") &&
-      fs.existsSync("/app/data/certs/key.pem");
+    const useTls = (process.env.TLS_ENABLED || "").toLowerCase() === "true";
     const client = useTls ? https : http;
     const req = client.request(
       {

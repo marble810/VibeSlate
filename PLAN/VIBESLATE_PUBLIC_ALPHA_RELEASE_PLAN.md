@@ -9,10 +9,10 @@
 
 ## Implemented
 
-- Added `docker/docker-compose.example.yml` as the tracked public template.
-- Moved real local deployment file expectation to `docker/docker-compose.yml` and ignored it.
+- Added `docker/.env.example` and `docker/docker-compose.example.yml` as the tracked public templates.
+- Moved real local deployment file expectation to `docker/.env` + `docker/docker-compose.yml` and ignored both.
 - Added `docker/GetCodexAuthInfo.sh` and `docker/GetCodexAuthInfo.ps1`.
-- Switched public docs and helper copy to compose-level provider/auth/TLS configuration.
+- Switched public docs and helper copy to `.env`-level provider/auth/TLS/user settings.
 - Updated Dockerfile OCI metadata to `VibeSlate` + `AGPL-3.0-only`.
 - Added GHCR alpha image workflow for `linux/amd64` and `linux/arm64`.
 - Renamed public app, PWA, login, and LAN setup strings to `VibeSlate`.

@@ -35,7 +35,8 @@ console.log(`  ${cyan(h("VibeSlate"))}  ${dim("— LLM usage and spare-device in
 // ── Docker deployment ──
 heading("Docker Deployment");
 row("cp docker/docker-compose.example.yml docker/docker-compose.yml", "Create your local compose file");
-row("./docker/GetCodexAuthInfo.sh", "Print OpenAI YAML for docker/docker-compose.yml");
+row("cp docker/.env.example docker/.env", "Create your local Docker env file");
+row("./docker/GetCodexAuthInfo.sh", "Print OpenAI env lines for docker/.env");
 row("docker compose -f docker/docker-compose.yml up -d app", "Start containers → http://localhost:12001");
 row("docker compose -f docker/docker-compose.yml ps", "Check container status");
 
@@ -55,12 +56,12 @@ row("bun run preview", "Build + start production server");
 // ── Utilities ──
 heading("Utilities");
 row("bun run codex:auth", "Legacy Bun-based OpenAI credential extractor");
-row("./docker/GetCodexAuthInfo.sh", "Shell helper for compose-ready YAML");
-row("./docker/GetCodexAuthInfo.ps1", "PowerShell helper for compose-ready YAML");
+row("./docker/GetCodexAuthInfo.sh", "Shell helper for docker/.env");
+row("./docker/GetCodexAuthInfo.ps1", "PowerShell helper for docker/.env");
 row("bun run help", "Print this guide");
 
 console.log("");
-console.log(`  ${dim("Config:  docker/docker-compose.yml  (local copy from example)")}`);
+console.log(`  ${dim("Config:  docker/.env + docker/docker-compose.yml  (local copies from examples)")}`);
 console.log(`  ${dim("Dev:     server/config.jsonc          (copy config.example.jsonc)")}`);
 console.log(`  ${dim("Docs:    README.md | docs/DOCKER_DEPLOYMENT.md | DESIGN.md | ROADMAP.md")}`);
 console.log("");

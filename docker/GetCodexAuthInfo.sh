@@ -6,7 +6,7 @@ usage() {
 Usage: ./docker/GetCodexAuthInfo.sh [--auth-file <path>] [--state-file <path>] [--redact] [--format yaml|env]
 
 Reads ~/.codex/auth.json and prints paste-ready OpenAI credentials.
-Default output format is YAML for docker/docker-compose.yml.
+Default output format is env for docker/.env.
 EOF
 }
 
@@ -40,7 +40,7 @@ escape_yaml_double_quotes() {
 AUTH_FILE="${HOME}/.codex/auth.json"
 STATE_FILE=""
 REDACT=0
-FORMAT="yaml"
+FORMAT="env"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -114,10 +114,11 @@ if [ -n "$STATE_FILE" ]; then
   printf '# Runtime state file: %s\n' "$STATE_FILE"
 fi
 if [ "$FORMAT" = "env" ]; then
+  printf '# Paste into docker/.env\n'
   printf 'OPENAI_REFRESH_TOKEN=%s\n' "$REFRESH_TOKEN"
   printf 'OPENAI_ACCOUNT_ID=%s\n' "$ACCOUNT_ID"
 else
-  printf '# Paste under x-vibeslate-env in docker/docker-compose.yml\n'
+  printf '# Paste into the environment section of docker/docker-compose.yml\n'
   printf '  OPENAI_REFRESH_TOKEN: "%s"\n' "$(escape_yaml_double_quotes "$REFRESH_TOKEN")"
   printf '  OPENAI_ACCOUNT_ID: "%s"\n' "$(escape_yaml_double_quotes "$ACCOUNT_ID")"
 fi

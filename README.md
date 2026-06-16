@@ -1,23 +1,30 @@
+<div align="center">
+
 # VibeSlate
 
 > Turn your spare phones, tablets and e-ink readers into always-on LLM usage monitors.
 >
 > 将你的闲置手机、平板和电纸书变成常亮 LLM 用量监控器。
 
+</div>
+
 ## Docker Alpha 部署
 
 ```bash
 cp docker/docker-compose.example.yml docker/docker-compose.yml
+cp docker/.env.example docker/.env
 ./docker/GetCodexAuthInfo.sh
 docker compose -f docker/docker-compose.yml up -d app
 ```
 
 默认地址是 `http://localhost:12001`。
 
-密码保护和 LAN HTTPS 也都直接在 `docker/docker-compose.yml` 里通过 bool/string 字段开启或关闭，不再走额外交互初始化。
+用户可编辑的 provider、密码保护、LAN HTTPS 和 UI 设置都放在 `docker/.env` 里；`docker/docker-compose.yml` 只保留 Docker 结构层配置。
 
-`docker/docker-compose.yml` 中由用户手动填写的主要字段：
+`docker/.env` 中由用户手动填写的主要字段：
 
+- `HOST`
+- `PORT`
 - `DEEPSEEK_PLATFORM_TOKEN`
 - `OPENAI_REFRESH_TOKEN`
 - `OPENAI_ACCOUNT_ID`
@@ -26,14 +33,20 @@ docker compose -f docker/docker-compose.yml up -d app
 - `AUTH_ENABLED`
 - `AUTH_PASSWORD_HASH`
 - `AUTH_COOKIE_SECURE`
+- `AUTH_SESSION_TTL_SECONDS`
+- `AUTH_COOKIE_NAME`
 - `TLS_ENABLED`
 - `TLS_CERT_FILE`
 - `TLS_KEY_FILE`
 - `TLS_ROOT_CA_FILE`
+- `UI_CUSTOM_ACCENT`
+- `OPENAI_TOKEN_STATE_FILE`
+
+`AUTH_PASSWORD_HASH` 如果使用 Argon2id hash，粘贴到 `docker/.env` 时请用单引号包住整段值，避免其中的 `$` 被错误解析。
 
 ## Provider 凭证
 
-- `OpenAI`: 运行 `./docker/GetCodexAuthInfo.sh` 或 `./docker/GetCodexAuthInfo.ps1`，从宿主机 `~/.codex/auth.json` 打印可直接粘贴到 compose 的值。
+- `OpenAI`: 运行 `./docker/GetCodexAuthInfo.sh` 或 `./docker/GetCodexAuthInfo.ps1`，从宿主机 `~/.codex/auth.json` 打印可直接粘贴到 `docker/.env` 的值。
   如果 app 日志提示 `Refresh token rejected (401)`，说明本机 `auth.json` 落后于某个已有安装里最近一次 runtime 旋转出的 token；这时可改用已有安装的 `openai-token.json`：
   `./docker/GetCodexAuthInfo.sh --state-file /path/to/data/docker/state/openai-token.json`
 - `DeepSeek`: 浏览器登录 `platform.deepseek.com`，从 DevTools 网络请求的 `Authorization` header 里取 Bearer token。

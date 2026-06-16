@@ -4,6 +4,7 @@ dev-dist/
 .env
 .env.*
 !.env.example
+!docker/.env.example
 server/config.json
 server/config.jsonc
 server/auth.json
@@ -34,4 +35,5 @@ web/cert.pem
 # Local Docker compose copy for deployment
 docker/docker-compose.yml
 !docker/docker-compose.example.yml
+docker/.env
 ROADMAP.md

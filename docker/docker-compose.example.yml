@@ -1,53 +1,21 @@
 name: vibeslate
 
-# Copy this file to docker/docker-compose.yml, then edit the fields below.
+# Copy this file to docker/docker-compose.yml.
+# Copy docker/.env.example to docker/.env and edit that file for all provider/auth/TLS settings.
 # Main path:
-#   1. ./docker/GetCodexAuthInfo.sh
-#   2. Fill optional auth / TLS fields if needed
-#   3. docker compose -f docker/docker-compose.yml up -d app
-
-x-vibeslate-env: &vibeslate-env
-  HOST: 0.0.0.0
-  PORT: "12001"
-
-  # Required to boot: provider credentials
-  # DeepSeek: browser -> platform.deepseek.com -> DevTools -> Authorization header
-  DEEPSEEK_PLATFORM_TOKEN: ""
-  # OpenAI: run ./docker/GetCodexAuthInfo.sh or ./docker/GetCodexAuthInfo.ps1
-  OPENAI_REFRESH_TOKEN: ""
-  OPENAI_ACCOUNT_ID: ""
-  # OpenCode Go: leave empty if unused
-  OPENCODE_WORKSPACE_ID: ""
-  OPENCODE_AUTH_COOKIE: ""
-
-  # Optional password auth
-  # Set AUTH_ENABLED to "true" and paste an Argon2id hash into AUTH_PASSWORD_HASH.
-  AUTH_ENABLED: "false"
-  AUTH_PASSWORD_HASH: ""
-  # Use "false" for plain http://localhost:12001.
-  # Use "true" for TLS_ENABLED=true or any user-managed HTTPS reverse proxy.
-  AUTH_COOKIE_SECURE: "false"
-
-  # Optional LAN HTTPS
-  # Generate certs on the host and mount them into /app/data/certs.
-  TLS_ENABLED: "false"
-  TLS_CERT_FILE: /app/data/certs/cert.pem
-  TLS_KEY_FILE: /app/data/certs/key.pem
-  TLS_ROOT_CA_FILE: /app/data/certs/rootCA.pem
-
-  # Optional UI
-  UI_CUSTOM_ACCENT: "#8b5cf6"
-
-  # Optional runtime state
-  OPENAI_TOKEN_STATE_FILE: /app/data/state/openai-token.json
+#   1. cp docker/docker-compose.example.yml docker/docker-compose.yml
+#   2. cp docker/.env.example docker/.env
+#   3. ./docker/GetCodexAuthInfo.sh
+#   4. docker compose -f docker/docker-compose.yml up -d app
 
 services:
   app:
     image: ghcr.io/marble810/vibeslate:v0.1.0-alpha.1
     container_name: vibeslate
+    env_file:
+      - ./.env
     ports:
       - "12001:12001"
-    environment: *vibeslate-env
     volumes:
       - ../data/docker/state:/app/data/state
       - ../data/docker/certs:/app/data/certs

@@ -3,7 +3,7 @@ param(
   [string]$StateFile = "",
   [switch]$Redact,
   [ValidateSet("yaml", "env")]
-  [string]$Format = "yaml"
+  [string]$Format = "env"
 )
 
 function Fail($Message) {
@@ -82,10 +82,11 @@ if (-not [string]::IsNullOrWhiteSpace($StateFile)) {
   Write-Output "# Runtime state file: $StateFile"
 }
 if ($Format -eq "env") {
+  Write-Output "# Paste into docker/.env"
   Write-Output "OPENAI_REFRESH_TOKEN=$refreshToken"
   Write-Output "OPENAI_ACCOUNT_ID=$accountId"
 } else {
-  Write-Output "# Paste under x-vibeslate-env in docker/docker-compose.yml"
+  Write-Output "# Paste into the environment section of docker/docker-compose.yml"
   Write-Output "  OPENAI_REFRESH_TOKEN: ""$(Escape-YamlDoubleQuoted $refreshToken)"""
   Write-Output "  OPENAI_ACCOUNT_ID: ""$(Escape-YamlDoubleQuoted $accountId)"""
 }
