@@ -35,14 +35,13 @@ console.log(`  ${cyan(h("VibeSlate"))}  ${dim("— LLM usage and spare-device in
 // ── Docker deployment ──
 heading("Docker Deployment");
 row("cp docker/docker-compose.example.yml docker/docker-compose.yml", "Create your local compose file");
-row("./docker/GetCodexAuthInfo.sh", "Print OpenAI compose env lines");
-row("docker compose -f docker/docker-compose.yml run --rm init", "Password auth + LAN HTTPS helper");
-row("docker compose -f docker/docker-compose.yml up -d", "Start containers → http://localhost:12001");
+row("./docker/GetCodexAuthInfo.sh", "Print OpenAI YAML for docker/docker-compose.yml");
+row("docker compose -f docker/docker-compose.yml up -d app", "Start containers → http://localhost:12001");
+row("docker compose -f docker/docker-compose.yml ps", "Check container status");
 
 // ── Bun helpers ──
 heading("Bun Helpers");
-row("bun run docker:init", "Run the same compose init flow from Bun");
-row("bun run docker:up", "Wrap docker compose up -d");
+row("bun run docker:up", "Wrap docker compose up -d app");
 row("bun run docker:smoke", "Verify deployment end-to-end");
 
 // ── Development ──
@@ -56,12 +55,12 @@ row("bun run preview", "Build + start production server");
 // ── Utilities ──
 heading("Utilities");
 row("bun run codex:auth", "Legacy Bun-based OpenAI credential extractor");
-row("./docker/GetCodexAuthInfo.sh", "Shell helper for compose-ready credentials");
-row("./docker/GetCodexAuthInfo.ps1", "PowerShell helper for compose-ready credentials");
+row("./docker/GetCodexAuthInfo.sh", "Shell helper for compose-ready YAML");
+row("./docker/GetCodexAuthInfo.ps1", "PowerShell helper for compose-ready YAML");
 row("bun run help", "Print this guide");
 
 console.log("");
 console.log(`  ${dim("Config:  docker/docker-compose.yml  (local copy from example)")}`);
 console.log(`  ${dim("Dev:     server/config.jsonc          (copy config.example.jsonc)")}`);
-console.log(`  ${dim("Docs:    README.md | DESIGN.md | ROADMAP.md")}`);
+console.log(`  ${dim("Docs:    README.md | docs/DOCKER_DEPLOYMENT.md | DESIGN.md | ROADMAP.md")}`);
 console.log("");

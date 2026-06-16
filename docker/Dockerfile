@@ -16,8 +16,6 @@ RUN bun run build
 # Stage 2: runtime
 FROM oven/bun:1-slim
 
-ARG TARGETARCH
-
 LABEL org.opencontainers.image.title="VibeSlate"
 LABEL org.opencontainers.image.description="LLM usage and spare-device info slate"
 LABEL org.opencontainers.image.source="https://github.com/marble810/vibeslate"
@@ -33,9 +31,6 @@ RUN bun install --frozen-lockfile --production
 COPY server/ /app/server/
 COPY --from=frontend /app/web/dist /app/web/dist
 WORKDIR /app/server
-
-# mkcert for optional LAN HTTPS
-RUN MKCERT_ARCH="${TARGETARCH:-amd64}" bun -e "const arch=process.env.MKCERT_ARCH||'amd64';const r=await fetch('https://dl.filippo.io/mkcert/latest?for=linux/'+arch);if(!r.ok)throw new Error('mkcert download failed: '+r.status);await Bun.write('/usr/local/bin/mkcert',await r.arrayBuffer())" && chmod +x /usr/local/bin/mkcert
 
 RUN mkdir -p /app/data/state /app/data/certs
 ENV HOST=0.0.0.0
