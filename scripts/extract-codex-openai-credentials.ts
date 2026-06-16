@@ -6,6 +6,7 @@ type Format = "text" | "shell" | "powershell" | "json";
 interface Options {
   format: Format;
   authFile: string;
+  stateFile: string | null;
   redact: boolean;
 }
 
@@ -20,6 +21,7 @@ function usage(): never {
 Options:
   --format <text|shell|powershell|json>  Output format (default: text)
   --auth-file <path>                     Override auth.json path
+  --state-file <path>                    Prefer a runtime openai-token.json file
   --redact                               Mask secrets in output
   -h, --help                             Show this help
 `);
@@ -35,6 +37,7 @@ function parseArgs(argv: string[]): Options {
   const options: Options = {
     format: "text",
     authFile: `${homedir()}/.codex/auth.json`,
+    stateFile: null,
     redact: false,
   };
 
@@ -59,6 +62,13 @@ function parseArgs(argv: string[]): Options {
       const value = argv[i + 1];
       if (!value) fail("Missing value for --auth-file");
       options.authFile = value;
+      i += 1;
+      continue;
+    }
+    if (arg === "--state-file") {
+      const value = argv[i + 1];
+      if (!value) fail("Missing value for --state-file");
+      options.stateFile = value;
       i += 1;
       continue;
     }
@@ -103,6 +113,31 @@ function readCredentials(authFile: string): Credentials {
   return { refreshToken, accountId };
 }
 
+function readStateCredentials(stateFile: string): Partial<Credentials> {
+  if (!existsSync(stateFile)) {
+    fail(`State file not found: ${stateFile}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(stateFile, "utf-8"));
+  } catch (error) {
+    fail(`Failed to parse ${stateFile}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    fail(`Unexpected state file shape: ${stateFile}`);
+  }
+
+  const refreshToken = (parsed as Record<string, unknown>).openai_refresh_token;
+  const accountId = (parsed as Record<string, unknown>).openai_account_id;
+
+  return {
+    refreshToken: typeof refreshToken === "string" ? refreshToken : "",
+    accountId: typeof accountId === "string" ? accountId : "",
+  };
+}
+
 function mask(value: string): string {
   if (value.length <= 12) return `${value.slice(0, 4)}...`;
   return `${value.slice(0, 8)}...${value.slice(-4)}`;
@@ -135,6 +170,7 @@ function render(options: Options, credentials: Credentials): string {
       return JSON.stringify(
         {
           auth_file: options.authFile,
+          state_file: options.stateFile,
           openai_refresh_token: refreshToken,
           openai_account_id: accountId,
         },
@@ -145,6 +181,7 @@ function render(options: Options, credentials: Credentials): string {
     default:
       return [
         `Codex auth file: ${options.authFile}`,
+        ...(options.stateFile ? [`Runtime state file: ${options.stateFile}`] : []),
         `OPENAI_REFRESH_TOKEN=${refreshToken}`,
         `OPENAI_ACCOUNT_ID=${accountId}`,
         "",
@@ -156,5 +193,10 @@ function render(options: Options, credentials: Credentials): string {
 }
 
 const options = parseArgs(process.argv.slice(2));
-const credentials = readCredentials(options.authFile);
+const authCredentials = readCredentials(options.authFile);
+const stateCredentials = options.stateFile ? readStateCredentials(options.stateFile) : {};
+const credentials: Credentials = {
+  refreshToken: stateCredentials.refreshToken || authCredentials.refreshToken,
+  accountId: stateCredentials.accountId || authCredentials.accountId,
+};
 console.log(render(options, credentials));

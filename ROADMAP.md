@@ -89,6 +89,7 @@
 - [x] 本机 source-built Docker runtime 验证完成（no-auth baseline、auth login、LAN HTTPS、SSE、`docker:smoke`）
 - [x] GitHub repo rename 到 `marble810/vibeslate` 且 visibility 切到 `PUBLIC`
 - [x] 增加 GHCR alpha workflow 并确认在新 repo 可见
-- [ ] `v0.1.0-alpha.1` tag、GHCR 多架构镜像发布与公开 pull 验证
-- [ ] 在 clean checkout 上完成公开仓库 + 公开镜像 Docker-only 全流程实机验证
+- [x] `v0.1.0-alpha.1` tag、GHCR 多架构镜像发布与公开 pull 验证完成
+- [x] clean checkout 公开仓库 + 公开镜像 Docker-only 主路径验证完成（helper、init、`up -d app`、首页、SSE heartbeat、日志）
+- [x] OpenAI helper 支持 `--state-file`，用于处理 `~/.codex/auth.json` 落后于 runtime 持久化 token 的机器
 - [ ] `docker/GetCodexAuthInfo.ps1` 在 Windows / PowerShell Core 上完成人工实跑验证

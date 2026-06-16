@@ -1,5 +1,6 @@
 param(
   [string]$AuthFile = (Join-Path $HOME ".codex/auth.json"),
+  [string]$StateFile = "",
   [switch]$Redact
 )
 
@@ -36,6 +37,28 @@ if ($null -eq $tokens) {
 $refreshToken = [string]$tokens.refresh_token
 $accountId = [string]$tokens.account_id
 
+if (-not [string]::IsNullOrWhiteSpace($StateFile)) {
+  if (-not (Test-Path -LiteralPath $StateFile)) {
+    Fail "state file not found: $StateFile"
+  }
+
+  try {
+    $stateParsed = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
+  } catch {
+    Fail "failed to parse state file: $($_.Exception.Message)"
+  }
+
+  $stateRefreshToken = [string]$stateParsed.openai_refresh_token
+  $stateAccountId = [string]$stateParsed.openai_account_id
+
+  if (-not [string]::IsNullOrWhiteSpace($stateRefreshToken)) {
+    $refreshToken = $stateRefreshToken
+  }
+  if (-not [string]::IsNullOrWhiteSpace($stateAccountId)) {
+    $accountId = $stateAccountId
+  }
+}
+
 if ([string]::IsNullOrWhiteSpace($refreshToken)) {
   Fail "tokens.refresh_token not found in $AuthFile"
 }
@@ -49,5 +72,8 @@ if ($Redact) {
 }
 
 Write-Output "# Codex auth file: $AuthFile"
+if (-not [string]::IsNullOrWhiteSpace($StateFile)) {
+  Write-Output "# Runtime state file: $StateFile"
+}
 Write-Output "OPENAI_REFRESH_TOKEN=$refreshToken"
 Write-Output "OPENAI_ACCOUNT_ID=$accountId"

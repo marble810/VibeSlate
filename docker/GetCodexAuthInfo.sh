@@ -4,6 +4,7 @@ set -eu
 usage() {
   cat <<'EOF'
 Usage: ./docker/GetCodexAuthInfo.sh [--auth-file <path>] [--redact]
+       ./docker/GetCodexAuthInfo.sh [--state-file <path>] [--auth-file <path>] [--redact]
 
 Reads ~/.codex/auth.json and prints compose-ready OpenAI credential lines.
 EOF
@@ -33,6 +34,7 @@ extract_json_value() {
 }
 
 AUTH_FILE="${HOME}/.codex/auth.json"
+STATE_FILE=""
 REDACT=0
 
 while [ "$#" -gt 0 ]; do
@@ -40,6 +42,11 @@ while [ "$#" -gt 0 ]; do
     --auth-file)
       [ "$#" -ge 2 ] || fail 'missing value for --auth-file'
       AUTH_FILE="$2"
+      shift 2
+      ;;
+    --state-file)
+      [ "$#" -ge 2 ] || fail 'missing value for --state-file'
+      STATE_FILE="$2"
       shift 2
       ;;
     --redact)
@@ -62,6 +69,20 @@ JSON_ONE_LINE=$(tr -d '\n' < "$AUTH_FILE")
 REFRESH_TOKEN=$(extract_json_value refresh_token)
 ACCOUNT_ID=$(extract_json_value account_id)
 
+if [ -n "$STATE_FILE" ]; then
+  [ -f "$STATE_FILE" ] || fail "state file not found: $STATE_FILE"
+  STATE_JSON_ONE_LINE=$(tr -d '\n' < "$STATE_FILE")
+  STATE_REFRESH_TOKEN=$(printf '%s' "$STATE_JSON_ONE_LINE" | sed -n 's/.*"openai_refresh_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  STATE_ACCOUNT_ID=$(printf '%s' "$STATE_JSON_ONE_LINE" | sed -n 's/.*"openai_account_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+  if [ -n "$STATE_REFRESH_TOKEN" ]; then
+    REFRESH_TOKEN="$STATE_REFRESH_TOKEN"
+  fi
+  if [ -n "$STATE_ACCOUNT_ID" ]; then
+    ACCOUNT_ID="$STATE_ACCOUNT_ID"
+  fi
+fi
+
 [ -n "$REFRESH_TOKEN" ] || fail "tokens.refresh_token not found in $AUTH_FILE"
 [ -n "$ACCOUNT_ID" ] || fail "tokens.account_id not found in $AUTH_FILE"
 
@@ -71,5 +92,8 @@ if [ "$REDACT" -eq 1 ]; then
 fi
 
 printf '# Codex auth file: %s\n' "$AUTH_FILE"
+if [ -n "$STATE_FILE" ]; then
+  printf '# Runtime state file: %s\n' "$STATE_FILE"
+fi
 printf 'OPENAI_REFRESH_TOKEN=%s\n' "$REFRESH_TOKEN"
 printf 'OPENAI_ACCOUNT_ID=%s\n' "$ACCOUNT_ID"

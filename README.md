@@ -26,6 +26,8 @@ docker compose -f docker/docker-compose.yml up -d app
 ## Provider 凭证获取
 
 - `OpenAI`: 运行 `./docker/GetCodexAuthInfo.sh` 或 `./docker/GetCodexAuthInfo.ps1`，从宿主机 `~/.codex/auth.json` 打印可直接粘贴到 compose 的值。
+  如果 app 日志提示 `Refresh token rejected (401)`，说明本机 `auth.json` 落后于某个已有安装里最近一次 runtime 旋转出的 token；这时可改用已有安装的 `openai-token.json`：
+  `./docker/GetCodexAuthInfo.sh --state-file /path/to/data/docker/state/openai-token.json`
 - `DeepSeek`: 浏览器登录 `platform.deepseek.com`，从 DevTools 网络请求的 `Authorization` header 里取 Bearer token。
 - `OpenCode Go`: 从工作区 URL 获取 `wrk_...`，再从浏览器 Cookie 中取 `auth`。
 
