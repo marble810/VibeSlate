@@ -11,6 +11,21 @@ export default defineConfig(({ command }) => {
   const pwaEnabled = command === 'serve'
     ? process.env.MARBLE_PWA_ENABLED === 'true'
     : process.env.MARBLE_PWA_ENABLED !== 'false';
+  const devServer = command === 'serve'
+    ? {
+        host: true,
+        port: 5173,
+        https: {
+          key: fs.readFileSync(path.resolve(__dirname, './key.pem')),
+          cert: fs.readFileSync(path.resolve(__dirname, './cert.pem')),
+        },
+        proxy: {
+          '/auth': 'http://localhost:12001',
+          '/api': 'http://localhost:12001',
+          '/events': 'http://localhost:12001',
+        },
+      }
+    : undefined;
 
   return {
     plugins: [
@@ -46,19 +61,7 @@ export default defineConfig(({ command }) => {
         },
       }),
     ],
-    server: {
-      host: true,
-      port: 5173,
-      https: {
-        key: fs.readFileSync(path.resolve(__dirname, './key.pem')),
-        cert: fs.readFileSync(path.resolve(__dirname, './cert.pem')),
-      },
-      proxy: {
-        '/auth': 'http://localhost:12001',
-        '/api': 'http://localhost:12001',
-        '/events': 'http://localhost:12001',
-      },
-    },
+    server: devServer,
     resolve: {
       alias: {
         $lib: path.resolve(__dirname, './src/lib'),
