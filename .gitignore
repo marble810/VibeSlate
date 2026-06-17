@@ -35,3 +35,4 @@ docker/docker-compose.yml
 !docker/docker-compose.example.yml
 docker/.env
 ROADMAP.md
+backlog/
