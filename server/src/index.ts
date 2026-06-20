@@ -1,11 +1,12 @@
 import { generateHeartbeat } from './mock';
 import { fetchDeepSeekData } from './deepseek';
-import { fetchOpenAIData } from './openai';
+import { OpenAICodexProvider } from './openai';
+import { OpenAIUsageStore } from './openai-store';
 import { fetchOpenCodeGoData } from './opencode';
 import { loadConfig } from './config';
 import { createAuthManager } from './auth';
 import { handleLanSetup } from './lan-setup';
-import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
+import type { DeepSeekData, OpenAIAuthStatus, OpenAIData, OpenCodeGoData } from './types';
 import { statSync } from 'node:fs';
 
 // ── Config ──
@@ -42,7 +43,19 @@ const useTls = !!(tlsCert && tlsKey);
 // ── Cached provider data ──
 let deepseekCache: DeepSeekData | null = null;
 let openaiCache: OpenAIData | null = null;
+let openaiAuthCache: OpenAIAuthStatus = {
+  state: config.openai.enabled ? 'not_configured' : 'not_configured',
+  email_redacted: null,
+  plan_type: null,
+  last_success_at: null,
+  last_error_code: config.openai.enabled ? null : 'OPENAI_DISABLED',
+  auth_json_hash: null,
+  ts: Math.floor(Date.now() / 1000),
+};
 let opencodeCache: OpenCodeGoData | null = null;
+
+const openaiProvider = config.openai.enabled ? new OpenAICodexProvider(config.openai) : null;
+const openaiUsageStore = config.openai.enabled ? new OpenAIUsageStore(config.openai.sqlite_path) : null;
 
 // ── SSE broadcast ──
 type Enqueue = (chunk: Uint8Array) => void;
@@ -57,6 +70,22 @@ function broadcast(event: string, data: unknown) {
     } catch {
       clients.delete(enqueue);
     }
+  }
+}
+
+function updateOpenAIAuth(status: OpenAIAuthStatus) {
+  openaiAuthCache = status;
+  broadcast('openai-auth', status);
+}
+
+async function readJsonBody(req: Request): Promise<Record<string, unknown>> {
+  try {
+    const parsed = await req.json();
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
   }
 }
 
@@ -85,18 +114,20 @@ async function refreshDeepSeek() {
 
 // ── OpenAI refresh ──
 async function refreshOpenAI() {
-  const result = await fetchOpenAIData(
-    config.openai_refresh_token,
-    config.openai_account_id,
-  );
+  if (!openaiProvider) return;
+  const result = await openaiProvider.fetchOpenAIData();
+  updateOpenAIAuth(openaiProvider.getAuthStatus());
   if (result) {
     openaiCache = result;
+    openaiUsageStore?.saveSnapshot(result);
     broadcast('openai', result);
     console.log(
       `[openai] Updated — plan: ${result.planType}, ` +
         `primary: ${result.primaryUsedPercent}%, ` +
         `secondary: ${result.secondaryUsedPercent}%`,
     );
+  } else {
+    console.log(`[openai] Auth state: ${openaiAuthCache.state}`);
   }
 }
 
@@ -117,9 +148,9 @@ if (config.deepseek_token) {
   refreshDeepSeek();
   setInterval(refreshDeepSeek, DEEPSEEK_INTERVAL);
 }
-if (config.openai_refresh_token) {
+if (openaiProvider) {
   refreshOpenAI();
-  setInterval(refreshOpenAI, DEEPSEEK_INTERVAL);
+  setInterval(refreshOpenAI, config.openai.poll_interval_seconds * 1000);
 }
 if (config.opencode_workspace_id && config.opencode_auth_cookie) {
   refreshOpenCodeGo();
@@ -176,7 +207,7 @@ const server = Bun.serve({
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': '*',
         },
       });
@@ -197,6 +228,101 @@ const server = Bun.serve({
           },
         },
       );
+    }
+
+    if (url.pathname === '/api/openai/auth/status' && req.method === 'GET') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+
+      if (openaiProvider) {
+        updateOpenAIAuth(await openaiProvider.refreshAuthStatus());
+      }
+      return Response.json(openaiAuthCache, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    if (url.pathname === '/api/openai/auth/login/start' && req.method === 'POST') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+      if (!openaiProvider) return Response.json({ error: 'OPENAI_DISABLED' }, { status: 503 });
+
+      try {
+        const login = await openaiProvider.startLogin();
+        updateOpenAIAuth(openaiProvider.getAuthStatus());
+        return Response.json(login, {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      } catch {
+        return Response.json(
+          { error: 'LOGIN_START_FAILED' },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (url.pathname === '/api/openai/auth/login/cancel' && req.method === 'POST') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+      if (!openaiProvider) return Response.json({ error: 'OPENAI_DISABLED' }, { status: 503 });
+
+      const body = await readJsonBody(req);
+      const loginId = typeof body.loginId === 'string' ? body.loginId : null;
+      const result = await openaiProvider.cancelLogin(loginId);
+      updateOpenAIAuth(openaiProvider.getAuthStatus());
+      return Response.json(result, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    if (url.pathname === '/api/openai/auth/logout' && req.method === 'POST') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+      if (!openaiProvider) return Response.json({ error: 'OPENAI_DISABLED' }, { status: 503 });
+
+      await openaiProvider.logout();
+      updateOpenAIAuth(openaiProvider.getAuthStatus());
+      openaiCache = null;
+      return Response.json({ ok: true }, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    if (url.pathname === '/api/openai/usage/latest' && req.method === 'GET') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+
+      return Response.json(openaiUsageStore?.latest() ?? openaiCache, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    if (url.pathname === '/api/openai/usage/history' && req.method === 'GET') {
+      const authResponse = auth.requireRequest(req);
+      if (authResponse) return authResponse;
+
+      const limit = Number.parseInt(url.searchParams.get('limit') || '100', 10);
+      return Response.json(openaiUsageStore?.history(Number.isFinite(limit) ? limit : 100) ?? [], {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     // SSE endpoint
@@ -239,6 +365,12 @@ const server = Bun.serve({
             } catch {
               // ignore
             }
+          }
+          const oaAuth = `event: openai-auth\ndata: ${JSON.stringify(openaiAuthCache)}\n\n`;
+          try {
+            controller.enqueue(new TextEncoder().encode(oaAuth));
+          } catch {
+            // ignore
           }
           if (opencodeCache) {
             const oc = `event: opencode\ndata: ${JSON.stringify(opencodeCache)}\n\n`;
@@ -335,9 +467,9 @@ console.log(
     : 'DeepSeek API: DISABLED (no token configured)',
 );
 console.log(
-  config.openai_refresh_token
-    ? `OpenAI API: enabled (refresh every ${config.query_interval_seconds}s)`
-    : 'OpenAI API: DISABLED (no token configured)',
+  openaiProvider
+    ? `OpenAI Codex app-server: enabled (poll every ${config.openai.poll_interval_seconds}s)`
+    : 'OpenAI Codex app-server: disabled',
 );
 console.log(
   config.opencode_workspace_id && config.opencode_auth_cookie
@@ -349,3 +481,17 @@ console.log(
     ? 'Password auth: enabled'
     : 'Password auth: disabled',
 );
+
+function shutdown() {
+  openaiProvider?.stop();
+  openaiUsageStore?.close();
+}
+
+process.on('SIGINT', () => {
+  shutdown();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  shutdown();
+  process.exit(0);
+});

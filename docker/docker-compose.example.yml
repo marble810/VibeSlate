@@ -5,20 +5,23 @@ name: vibeslate
 # Main path:
 #   1. cp docker/docker-compose.example.yml docker/docker-compose.yml
 #   2. cp docker/.env.example docker/.env
-#   3. ./docker/GetCodexAuthInfo.sh
-#   4. docker compose -f docker/docker-compose.yml up -d app
+#   3. docker compose -f docker/docker-compose.yml up -d app
+#   4. run `docker compose -f docker/docker-compose.yml exec --workdir /app app bun run openai:auth:login`
+#      or use the OpenAI card device-code login
 
 services:
   app:
     image: ghcr.io/marble810/vibeslate:v0.1.0-alpha.1
     container_name: vibeslate
     env_file:
-      - ./.env
+      - path: ./.env.example
+        required: true
+      - path: ./.env
+        required: false
     ports:
       - "12001:12001"
     volumes:
-      - ../data/docker/state:/app/data/state
-      - ../data/docker/certs:/app/data/certs
+      - ../data/docker:/app/data
     restart: unless-stopped
     logging:
       driver: json-file

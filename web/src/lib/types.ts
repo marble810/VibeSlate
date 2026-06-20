@@ -32,6 +32,32 @@ export interface OpenAIData {
   ts: number;
 }
 
+export type OpenAIAuthState =
+  | 'not_configured'
+  | 'login_pending'
+  | 'authenticated'
+  | 'expired_recoverable'
+  | 'revoked'
+  | 'duplicated_auth_detected'
+  | 'codex_app_server_unavailable';
+
+export interface OpenAIAuthStatus {
+  state: OpenAIAuthState;
+  email_redacted: string | null;
+  plan_type: string | null;
+  last_success_at: number | null;
+  last_error_code: string | null;
+  auth_json_hash: string | null;
+  ts: number;
+}
+
+export interface OpenAILoginStartResponse {
+  type: 'chatgptDeviceCode';
+  loginId: string;
+  verificationUrl: string;
+  userCode: string;
+}
+
 export interface OpenCodeGoData {
   rollingPercent: number;
   rollingResetsAt: number;

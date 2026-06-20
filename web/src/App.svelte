@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { customAccent, deepseekData, openaiData, opencodeData, theme } from '$lib/stores';
+  import { customAccent, deepseekData, openaiAuthStatus, openaiData, opencodeData, theme } from '$lib/stores';
   import { connectSSE } from '$lib/sse';
   import {
     DEFAULT_CUSTOM_ACCENT,
@@ -9,7 +9,7 @@
     readStoredTheme,
   } from '$lib/theme';
   import { connectWakeLock } from '$lib/wakeLock';
-  import type { DeepSeekData, OpenAIData, OpenCodeGoData } from '$lib/types';
+  import type { DeepSeekData, OpenAIAuthStatus, OpenAIData, OpenCodeGoData } from '$lib/types';
   import Footer from './components/Footer.svelte';
   import DeepSeekCard from './widgets/DeepSeekCard.svelte';
   import OpenAICard from './widgets/OpenAICard.svelte';
@@ -17,6 +17,7 @@
 
   let dsData = $state<DeepSeekData | null>(null);
   let oaData = $state<OpenAIData | null>(null);
+  let oaAuth = $state<OpenAIAuthStatus | null>(null);
   let ocData = $state<OpenCodeGoData | null>(null);
   let disconnectSSE: (() => void) | null = null;
   let disconnectWakeLock: (() => void) | null = null;
@@ -46,6 +47,7 @@
 
   const unsubscribeDeepSeek = deepseekData.subscribe((val) => { dsData = val; });
   const unsubscribeOpenAI = openaiData.subscribe((val) => { oaData = val; });
+  const unsubscribeOpenAIAuth = openaiAuthStatus.subscribe((val) => { oaAuth = val; });
   const unsubscribeOpenCode = opencodeData.subscribe((val) => { ocData = val; });
   const unsubscribeTheme = theme.subscribe((val) => {
     activeTheme = val;
@@ -59,6 +61,7 @@
   onDestroy(() => {
     unsubscribeDeepSeek();
     unsubscribeOpenAI();
+    unsubscribeOpenAIAuth();
     unsubscribeOpenCode();
     unsubscribeTheme();
     unsubscribeCustomAccent();
@@ -75,7 +78,7 @@
     };
   });
 
-  let hasData = $derived(!!dsData || !!oaData || !!ocData);
+  let hasData = $derived(!!dsData || !!oaData || !!oaAuth || !!ocData);
 </script>
 
 <main class="grid">
@@ -85,11 +88,7 @@
     {:else}
       <div class="waiting-card">等待 DeepSeek 数据…</div>
     {/if}
-    {#if oaData}
-      <OpenAICard label="OpenAI" data={oaData} />
-    {:else}
-      <div class="waiting-card">等待 OpenAI 数据…</div>
-    {/if}
+    <OpenAICard label="OpenAI" data={oaData} authStatus={oaAuth} />
     {#if ocData}
       <OpenCodeCard label="OpenCode Go" data={ocData} />
     {:else}

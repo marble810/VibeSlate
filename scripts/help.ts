@@ -36,14 +36,15 @@ console.log(`  ${cyan(h("VibeSlate"))}  ${dim("— LLM usage and spare-device in
 heading("Docker Deployment");
 row("cp docker/docker-compose.example.yml docker/docker-compose.yml", "Create your local compose file");
 row("cp docker/.env.example docker/.env", "Create your local Docker env file");
-row("./docker/GetCodexAuthInfo.sh", "Print OpenAI env lines for docker/.env");
 row("docker compose -f docker/docker-compose.yml up -d app", "Start containers → http://localhost:12001");
+row("bun run docker:openai:login", "Create Docker-owned OpenAI device-code session");
 row("docker compose -f docker/docker-compose.yml ps", "Check container status");
 
 // ── Bun helpers ──
 heading("Bun Helpers");
 row("bun run docker:up", "Wrap docker compose up -d app");
 row("bun run docker:smoke", "Verify deployment end-to-end");
+row("bun run docker:openai:login", "Run OpenAI login CLI inside the app container");
 
 // ── Development ──
 heading("Development");
@@ -55,13 +56,13 @@ row("bun run preview", "Build + start production server");
 
 // ── Utilities ──
 heading("Utilities");
-row("bun run codex:auth", "Legacy Bun-based OpenAI credential extractor");
-row("./docker/GetCodexAuthInfo.sh", "Shell helper for docker/.env");
-row("./docker/GetCodexAuthInfo.ps1", "PowerShell helper for docker/.env");
+row("bun run openai:auth:doctor", "Inspect Codex app-server auth state safely");
+row("bun run openai:auth:login", "Start OpenAI login via the running backend");
+row("bun run check:codex-app-server-schema", "Verify required Codex protocol methods");
 row("bun run help", "Print this guide");
 
 console.log("");
 console.log(`  ${dim("Config:  docker/.env + docker/docker-compose.yml  (local copies from examples)")}`);
-console.log(`  ${dim("Dev:     server/config.jsonc          (copy config.example.jsonc)")}`);
+console.log(`  ${dim("Dev:     server/config.jsonc          (copy config.example.jsonc; fill credentials manually)")}`);
 console.log(`  ${dim("Docs:    README.md | docs/DOCKER_DEPLOYMENT.md | DESIGN.md | ROADMAP.md")}`);
 console.log("");

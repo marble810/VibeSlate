@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { DeepSeekData, OpenAIData, OpenCodeGoData, WakeLockStatus } from './types';
+import type { DeepSeekData, OpenAIAuthStatus, OpenAIData, OpenCodeGoData, WakeLockStatus } from './types';
 import {
   DEFAULT_CUSTOM_ACCENT,
   normalizeHexColor,
@@ -50,6 +50,9 @@ export const deepseekData = writable<DeepSeekData | null>(null);
 
 /** Latest OpenAI API data (separate SSE event) */
 export const openaiData = writable<OpenAIData | null>(null);
+
+/** Latest OpenAI Codex auth state (separate SSE event) */
+export const openaiAuthStatus = writable<OpenAIAuthStatus | null>(null);
 
 /** Latest OpenCode Go data (separate SSE event) */
 export const opencodeData = writable<OpenCodeGoData | null>(null);

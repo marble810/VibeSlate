@@ -12,13 +12,17 @@
     "# ── Docker Deployment ──": "",
     "docker:up": "bun scripts/docker-up.ts",
     "docker:smoke": "bun scripts/docker-smoke.ts",
+    "docker:openai:login": "bun scripts/docker-openai-login.ts",
     "# ── Utilities ──": "",
     "help": "bun scripts/help.ts",
-    "codex:auth": "bun scripts/extract-codex-openai-credentials.ts"
+    "check:codex-app-server-schema": "bun scripts/check-codex-app-server-schema.ts",
+    "openai:auth:login": "bun scripts/openai-auth-login.ts",
+    "openai:auth:doctor": "bun scripts/openai-auth-doctor.ts"
   },
   "dependencies": {
-    "systeminformation": "^5.31.7",
-    "qrcode": "^1.5.4"
+    "@openai/codex": "0.140.0",
+    "qrcode": "^1.5.4",
+    "systeminformation": "^5.31.7"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.5"

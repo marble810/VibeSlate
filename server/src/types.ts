@@ -83,32 +83,7 @@ export interface DeepSeekData {
   ts: number;
 }
 
-// ── OpenAI Codex WHAM usage types ──
-
-export interface WhamRateLimitWindow {
-  used_percent: number;
-  limit_window_seconds: number;
-  reset_after_seconds: number;
-  reset_at: number;
-}
-
-export interface WhamUsageResponse {
-  user_id: string;
-  account_id: string;
-  email: string;
-  plan_type: string;
-  rate_limit: {
-    allowed: boolean;
-    limit_reached: boolean;
-    primary_window: WhamRateLimitWindow | null;
-    secondary_window: WhamRateLimitWindow | null;
-  };
-  credits: {
-    has_credits: boolean;
-    unlimited: boolean;
-    balance: string;
-  } | null;
-}
+// ── OpenAI Codex app-server usage and auth types ──
 
 export interface OpenAIData {
   planType: string;
@@ -120,6 +95,32 @@ export interface OpenAIData {
   creditBalance: string;
   limitReached: boolean;
   ts: number;
+}
+
+export type OpenAIAuthState =
+  | 'not_configured'
+  | 'login_pending'
+  | 'authenticated'
+  | 'expired_recoverable'
+  | 'revoked'
+  | 'duplicated_auth_detected'
+  | 'codex_app_server_unavailable';
+
+export interface OpenAIAuthStatus {
+  state: OpenAIAuthState;
+  email_redacted: string | null;
+  plan_type: string | null;
+  last_success_at: number | null;
+  last_error_code: string | null;
+  auth_json_hash: string | null;
+  ts: number;
+}
+
+export interface OpenAILoginStartResponse {
+  type: 'chatgptDeviceCode';
+  loginId: string;
+  verificationUrl: string;
+  userCode: string;
 }
 
 export interface OpenCodeGoData {

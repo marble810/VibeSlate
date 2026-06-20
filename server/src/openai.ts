@@ -1,252 +1,276 @@
-/**
- * OpenAI Codex usage API client with OAuth token auto-refresh.
- *
- * Token flow:
- *   1. User puts refresh_token + account_id in config.json
- *      (extracted once from ~/.codex/auth.json)
- *   2. Server calls auth.openai.com/oauth/token to get access_token
- *   3. Server calls chatgpt.com/backend-api/wham/usage with access_token
- *   4. When access_token expires, refresh_token is used again
- *   5. New refresh_token (rotated) is logged for manual config update
- *
- * This does NOT require codex CLI to be installed — pure HTTP.
- */
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import type { OpenAIProviderConfig } from './config';
+import { CodexAppServerManager } from './codex-app-server-manager';
+import type {
+  AccountLoginCompletedNotification,
+  GetAccountRateLimitsResponse,
+  GetAccountResponse,
+  JsonRpcNotification,
+  LoginAccountResponse,
+  RateLimitSnapshot,
+} from './codex-app-server-protocol';
+import { redactEmail, redactSecrets, sha256File } from './secret-redaction';
+import type { OpenAIAuthStatus, OpenAIData, OpenAILoginStartResponse } from './types';
 
-import type { OpenAIData, WhamUsageResponse } from './types';
+export class OpenAICodexProvider {
+  private readonly manager: CodexAppServerManager;
+  private authStatus: OpenAIAuthStatus;
+  private pendingLoginId: string | null = null;
 
-// ── OAuth constants (from codex-rs source) ──
+  constructor(private readonly config: OpenAIProviderConfig) {
+    const lockPath = join(dirname(config.auth_status_path), 'locks', 'codex-authd.lock');
+    this.manager = new CodexAppServerManager({
+      codexCliPath: config.codex_cli_path,
+      codexHome: config.codex_home,
+      lockPath,
+    });
+    this.manager.onNotification((notification) => this.handleNotification(notification));
+    this.authStatus = this.makeStatus('not_configured', null, null, null);
+  }
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
-import { dirname } from 'node:path';
+  getAuthStatus(): OpenAIAuthStatus {
+    return this.authStatus;
+  }
 
-const TOKEN_URL = 'https://auth.openai.com/oauth/token';
-const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
-const USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
-
-// ── Token state (in-memory, survives across calls in same process) ──
-
-interface TokenState {
-  accessToken: string;
-  accountId: string;
-  refreshToken: string; // latest (rotated) refresh token
-  expiresAt: number; // epoch ms
-}
-
-let tokenState: TokenState | null = null;
-
-/**
- * Try to auto-save a rotated refresh token back to config.json.
- * Only saves if the config file already exists (won't create one).
- */
-function autoSaveRefreshToken(newToken: string) {
-  const configDir = new URL('..', import.meta.url).pathname;
-  const paths = [`${configDir}/config.json`, `${configDir}/config.jsonc`];
-
-  for (const p of paths) {
-    if (!existsSync(p)) continue;
+  async refreshAuthStatus(): Promise<OpenAIAuthStatus> {
     try {
-      const raw = readFileSync(p, 'utf-8');
-      // Replace the openai_refresh_token value (handles both plain and JSONC)
-      const updated = raw.replace(
-        /"openai_refresh_token"\s*:\s*"[^"]*"/,
-        `"openai_refresh_token": "${newToken}"`,
+      const account = await this.manager.readAccount(true);
+      this.updateStatusFromAccount(account);
+    } catch (error) {
+      this.setUnavailable(error);
+    }
+    return this.authStatus;
+  }
+
+  async fetchOpenAIData(): Promise<OpenAIData | null> {
+    try {
+      const account = await this.manager.readAccount(true);
+      this.updateStatusFromAccount(account);
+
+      if (!account.account || account.account.type !== 'chatgpt') return null;
+
+      const rateLimits = await this.manager.readRateLimits();
+      const data = normalizeRateLimits(account, rateLimits);
+      this.authStatus = this.makeStatus(
+        'authenticated',
+        account.account.email ?? null,
+        data.planType,
+        null,
       );
-      if (updated !== raw) {
-        writeFileSync(p, updated, 'utf-8');
-        console.log(`[openai]   ✓ Updated ${p}`);
-        return;
+      this.persistAuthStatus();
+      return data;
+    } catch (error) {
+      this.setAuthError(error);
+      return null;
+    }
+  }
+
+  async startLogin(): Promise<OpenAILoginStartResponse> {
+    const response = await this.manager.startLogin();
+    if (response.type !== 'chatgptDeviceCode') {
+      throw new Error(`Unexpected Codex login response: ${response.type}`);
+    }
+    assertDeviceCodeResponse(response);
+
+    this.pendingLoginId = response.loginId;
+    this.authStatus = this.makeStatus('login_pending', null, null, null);
+    this.persistAuthStatus();
+
+    return {
+      type: 'chatgptDeviceCode',
+      loginId: response.loginId,
+      verificationUrl: response.verificationUrl,
+      userCode: response.userCode,
+    };
+  }
+
+  async cancelLogin(loginId?: string | null): Promise<{ status: 'canceled' | 'notFound' | 'noPendingLogin' }> {
+    const targetLoginId = loginId || this.pendingLoginId;
+    if (!targetLoginId) return { status: 'noPendingLogin' };
+
+    const result = await this.manager.cancelLogin(targetLoginId);
+    if (this.pendingLoginId === targetLoginId) this.pendingLoginId = null;
+    await this.refreshAuthStatus();
+    return { status: result.status };
+  }
+
+  async logout(): Promise<void> {
+    await this.manager.logout();
+    this.pendingLoginId = null;
+    this.authStatus = this.makeStatus('not_configured', null, null, null);
+    this.persistAuthStatus();
+  }
+
+  stop(): void {
+    this.manager.stop();
+  }
+
+  private handleNotification(notification: JsonRpcNotification): void {
+    if (notification.method === 'account/login/completed') {
+      const params = notification.params as AccountLoginCompletedNotification;
+      if (params.loginId && params.loginId === this.pendingLoginId) this.pendingLoginId = null;
+      if (params.success) {
+        this.authStatus = this.makeStatus('authenticated', null, null, null);
+      } else {
+        this.authStatus = this.makeStatus('expired_recoverable', null, null, params.error || 'LOGIN_FAILED');
       }
-    } catch {
-      // Can't write — not critical
+      this.persistAuthStatus();
     }
   }
-  // Fallback: print for manual update
-  console.warn(`[openai]   ⚠ Could not auto-save. New token: "${newToken}"`);
-}
 
-/**
- * Get the runtime token state file path, if configured.
- * Only set in Docker deployments via OPENAI_TOKEN_STATE_FILE env.
- */
-function getOpenAITokenStatePath(): string | null {
-  const path = process.env.OPENAI_TOKEN_STATE_FILE;
-  return path && path.length > 0 ? path : null;
-}
+  private updateStatusFromAccount(response: GetAccountResponse): void {
+    if (this.pendingLoginId) {
+      this.authStatus = this.makeStatus('login_pending', null, null, null);
+      this.persistAuthStatus();
+      return;
+    }
 
-/**
- * Persist the latest OpenAI refresh token and account ID to the runtime
- * state file. Uses atomic write (temp file + rename) to avoid corrupt JSON.
- */
-function persistOpenAITokenState(refreshToken: string, accountId: string): void {
-  const statePath = getOpenAITokenStatePath();
-  if (!statePath) return;
+    const account = response.account;
+    if (!account || response.requiresOpenaiAuth) {
+      this.authStatus = this.makeStatus('not_configured', null, null, null);
+      this.persistAuthStatus();
+      return;
+    }
 
-  const payload = JSON.stringify(
-    {
-      version: 1,
-      openai_refresh_token: refreshToken,
-      openai_account_id: accountId,
-      updated_at: new Date().toISOString(),
-    },
-    null,
-    2,
-  );
+    if (account.type === 'chatgpt') {
+      this.authStatus = this.makeStatus(
+        'authenticated',
+        account.email ?? null,
+        account.planType ?? null,
+        null,
+      );
+      this.persistAuthStatus();
+      return;
+    }
 
-  try {
-    mkdirSync(dirname(statePath), { recursive: true });
-  } catch {
-    // Directory may already exist — not fatal.
+    this.authStatus = this.makeStatus('not_configured', null, null, 'UNSUPPORTED_ACCOUNT_TYPE');
+    this.persistAuthStatus();
   }
 
-  const tmpPath = statePath + '.tmp';
-  try {
-    writeFileSync(tmpPath, payload, 'utf-8');
-    renameSync(tmpPath, statePath);
-    console.log('[openai]   ✓ Persisted latest token state');
-  } catch (err) {
-    console.warn(`[openai]   ⚠ Failed to persist token state: ${err instanceof Error ? err.message : err}`);
-    try { unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
-  }
-}
-
-/**
- * Exchange refresh_token for a new access_token.
- * Returns the new tokens. Also logs if refresh_token was rotated.
- */
-async function refreshToken(
-  refreshToken: string,
-): Promise<{ access_token: string; refresh_token: string; account_id: string } | null> {
-  const resp = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(15_000),
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  });
-
-  if (!resp.ok) {
-    const body = await resp.text();
-    if (resp.status === 401) {
-      console.error('[openai] Refresh token rejected (401) — token expired or revoked');
+  private setAuthError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    const normalized = message.toLowerCase();
+    if (normalized.includes('lock already exists')) {
+      this.authStatus = this.makeStatus('duplicated_auth_detected', null, null, 'CODEX_AUTH_LOCKED');
+    } else if (normalized.includes('revoked')) {
+      this.authStatus = this.makeStatus('revoked', null, null, 'AUTH_REVOKED');
+    } else if (normalized.includes('expired') || normalized.includes('auth')) {
+      this.authStatus = this.makeStatus('expired_recoverable', null, null, 'AUTH_RECOVERABLE');
     } else {
-      console.error(`[openai] Token refresh HTTP ${resp.status}: ${body.slice(0, 200)}`);
+      this.authStatus = this.makeStatus(
+        'codex_app_server_unavailable',
+        null,
+        null,
+        redactSecrets(message).slice(0, 160),
+      );
     }
-    return null;
+    this.persistAuthStatus();
   }
 
-  const data = await resp.json();
-
-  // Detect rotated refresh_token
-  if (data.refresh_token && data.refresh_token !== refreshToken) {
-    console.warn('[openai] Refresh token rotated');
+  private setUnavailable(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    const state = message.toLowerCase().includes('lock already exists')
+      ? 'duplicated_auth_detected'
+      : 'codex_app_server_unavailable';
+    this.authStatus = this.makeStatus(state, null, null, redactSecrets(message).slice(0, 160));
+    this.persistAuthStatus();
   }
 
-  const latestRefreshToken = data.refresh_token || refreshToken;
-  const latestAccountId = data.account_id || '';
-
-  // Persist to Docker runtime state file if configured, otherwise try local config auto-save
-  if (getOpenAITokenStatePath()) {
-    persistOpenAITokenState(latestRefreshToken, latestAccountId);
-  } else if (latestRefreshToken !== refreshToken) {
-    autoSaveRefreshToken(latestRefreshToken);
+  private makeStatus(
+    state: OpenAIAuthStatus['state'],
+    email: string | null,
+    planType: string | null,
+    errorCode: string | null,
+  ): OpenAIAuthStatus {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      state,
+      email_redacted: redactEmail(email),
+      plan_type: planType,
+      last_success_at: state === 'authenticated' ? now : this.authStatus?.last_success_at ?? null,
+      last_error_code: errorCode,
+      auth_json_hash: authJsonHash(this.config.codex_home),
+      ts: now,
+    };
   }
+
+  private persistAuthStatus(): void {
+    try {
+      mkdirSync(dirname(this.config.auth_status_path), { recursive: true });
+      writeFileSync(this.config.auth_status_path, JSON.stringify(this.authStatus, null, 2), 'utf-8');
+    } catch (error) {
+      console.warn(
+        `[openai] Failed to persist auth status: ${
+          error instanceof Error ? redactSecrets(error.message) : 'unknown error'
+        }`,
+      );
+    }
+  }
+}
+
+export function normalizeRateLimits(
+  accountResponse: GetAccountResponse,
+  rateLimitsResponse: GetAccountRateLimitsResponse,
+): OpenAIData {
+  const snapshot =
+    rateLimitsResponse.rateLimitsByLimitId?.codex ||
+    rateLimitsResponse.rateLimits;
+  return normalizeRateLimitSnapshot(accountResponse, snapshot);
+}
+
+export function normalizeRateLimitSnapshot(
+  accountResponse: GetAccountResponse,
+  snapshot: RateLimitSnapshot,
+): OpenAIData {
+  const accountPlan =
+    accountResponse.account?.type === 'chatgpt' ? accountResponse.account.planType : null;
+  const planType = accountPlan || snapshot.planType || 'unknown';
+  const primary = snapshot.primary;
+  const secondary = snapshot.secondary;
+  const credits = snapshot.credits;
 
   return {
-    access_token: data.access_token,
-    refresh_token: latestRefreshToken,
-    account_id: latestAccountId,
-  };
-}
-
-/** Fetch usage data from /backend-api/wham/usage. */
-async function fetchUsage(accessToken: string, accountId: string): Promise<WhamUsageResponse | null> {
-  const resp = await fetch(USAGE_URL, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'ChatGPT-Account-Id': accountId,
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (resp.status === 401 || resp.status === 403) {
-    throw new Error('AUTH_EXPIRED');
-  }
-
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`wham/usage HTTP ${resp.status}: ${body.slice(0, 200)}`);
-  }
-
-  return resp.json();
-}
-
-/**
- * Main entry: get OpenAI usage data, refreshing tokens as needed.
- *
- * @param initialRefreshToken - stored in config.json
- * @param initialAccountId    - stored in config.json (fallback if not in token response)
- */
-export async function fetchOpenAIData(
-  initialRefreshToken: string,
-  initialAccountId: string,
-): Promise<OpenAIData | null> {
-  if (!initialRefreshToken) return null;
-
-  try {
-    // Use the latest refresh token (may have been rotated since startup)
-    const currentRefreshToken = tokenState?.refreshToken || initialRefreshToken;
-
-    // Refresh token if needed (first call or expired)
-    if (!tokenState || Date.now() > tokenState.expiresAt - 60_000) {
-      const fresh = await refreshToken(currentRefreshToken);
-      if (!fresh) return null;
-
-      tokenState = {
-        accessToken: fresh.access_token,
-        accountId: fresh.account_id || initialAccountId,
-        refreshToken: fresh.refresh_token, // track rotated token
-        // Assume 1h expiry, refresh 1min before
-        expiresAt: Date.now() + 59 * 60_000,
-      };
-    }
-
-    // Fetch usage
-    const usage = await fetchUsage(tokenState.accessToken, tokenState.accountId);
-    if (!usage) return null;
-
-    return mapUsageResponse(usage);
-  } catch (err) {
-    if (err instanceof Error && err.message === 'AUTH_EXPIRED') {
-      // Token expired mid-request, clear state for next retry
-      tokenState = null;
-      console.warn('[openai] Access token expired, will refresh on next cycle');
-    } else {
-      console.error('[openai] Fetch failed:', err instanceof Error ? err.message : err);
-    }
-    return null;
-  }
-}
-
-/** Map raw WHAM response to our simplified data model. */
-function mapUsageResponse(raw: WhamUsageResponse): OpenAIData {
-  const primary = raw.rate_limit?.primary_window;
-  const secondary = raw.rate_limit?.secondary_window;
-  const credits = raw.credits;
-
-  return {
-    planType: raw.plan_type || 'unknown',
-    primaryUsedPercent: primary?.used_percent ?? 0,
-    primaryResetsAt: primary?.reset_at ?? 0,
-    secondaryUsedPercent: secondary?.used_percent ?? 0,
-    secondaryResetsAt: secondary?.reset_at ?? 0,
-    hasCredits: credits?.has_credits ?? false,
+    planType,
+    primaryUsedPercent: clampPercent(primary?.usedPercent ?? 0),
+    primaryResetsAt: normalizeReset(primary?.resetsAt),
+    secondaryUsedPercent: clampPercent(secondary?.usedPercent ?? 0),
+    secondaryResetsAt: normalizeReset(secondary?.resetsAt),
+    hasCredits: credits?.hasCredits ?? false,
     creditBalance: credits?.balance ?? '0',
-    limitReached: raw.rate_limit?.limit_reached ?? false,
+    limitReached: snapshot.rateLimitReachedType != null,
     ts: Math.floor(Date.now() / 1000),
   };
+}
+
+function assertDeviceCodeResponse(response: LoginAccountResponse): asserts response is LoginAccountResponse & {
+  loginId: string;
+  verificationUrl: string;
+  userCode: string;
+} {
+  if (!response.loginId || !response.verificationUrl || !response.userCode) {
+    throw new Error('Codex device-code login response is missing required fields');
+  }
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(value, 100));
+}
+
+function normalizeReset(value: number | null | undefined): number {
+  if (!value || !Number.isFinite(value)) return 0;
+  return Math.floor(value);
+}
+
+function authJsonHash(codexHome: string): string | null {
+  const authPath = join(codexHome, 'auth.json');
+  if (!existsSync(authPath)) return null;
+
+  try {
+    if (!statSync(authPath).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return sha256File(authPath);
 }

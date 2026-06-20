@@ -1,6 +1,7 @@
-import type { DeepSeekData, OpenAIData, OpenCodeGoData } from './types';
+import type { DeepSeekData, OpenAIAuthStatus, OpenAIData, OpenCodeGoData } from './types';
 import {
   connected,
+  openaiAuthStatus as openaiAuthStore,
   deepseekData as deepseekStore,
   openaiData as openaiStore,
   opencodeData as opencodeStore,
@@ -34,6 +35,16 @@ export function connectSSE(url: string = '/events'): () => void {
       openaiStore.set(data);
     } catch (err) {
       console.error('[SSE] Failed to parse openai data:', err);
+    }
+  });
+
+  // ── OpenAI auth event: non-sensitive Codex app-server auth state ──
+  es.addEventListener('openai-auth', (event: MessageEvent) => {
+    try {
+      const data: OpenAIAuthStatus = JSON.parse(event.data);
+      openaiAuthStore.set(data);
+    } catch (err) {
+      console.error('[SSE] Failed to parse openai auth data:', err);
     }
   });
 

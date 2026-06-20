@@ -1,15 +1,22 @@
 <script lang="ts">
   import Card from '$components/Card.svelte';
   import ProgressBar from '$components/ProgressBar.svelte';
-  import type { OpenAIData } from '$lib/types';
+  import type { OpenAIAuthStatus, OpenAIData, OpenAILoginStartResponse } from '$lib/types';
 
   let {
     label,
     data,
+    authStatus,
   }: {
     label: string;
     data: OpenAIData | null;
+    authStatus: OpenAIAuthStatus | null;
   } = $props();
+
+  let login = $state<OpenAILoginStartResponse | null>(null);
+  let authBusy = $state(false);
+  let authError = $state('');
+  let authState = $derived(authStatus?.state ?? 'not_configured');
 
   function fmtPercent(pct: number): string {
     return `${Math.min(pct, 100).toFixed(1)}%`;
@@ -30,12 +37,91 @@
       minute: '2-digit',
     });
   }
+
+  function authBadgeLabel(): string | null {
+    if (data) return data.planType.toUpperCase();
+    if (authStatus?.plan_type) return authStatus.plan_type.toUpperCase();
+    if (!authStatus) return null;
+    return authStatus.state.replaceAll('_', ' ').toUpperCase();
+  }
+
+  function authStateText(): string {
+    switch (authState) {
+      case 'login_pending':
+        return 'Device login pending';
+      case 'authenticated':
+        return 'Waiting for OpenAI usage data';
+      case 'expired_recoverable':
+        return 'Codex login needs refresh';
+      case 'revoked':
+        return 'Codex login was revoked';
+      case 'duplicated_auth_detected':
+        return 'Another process is using this Codex home';
+      case 'codex_app_server_unavailable':
+        return 'Codex app-server unavailable';
+      case 'not_configured':
+      default:
+        return 'Codex login required';
+    }
+  }
+
+  async function startLogin() {
+    authBusy = true;
+    authError = '';
+    try {
+      const response = await fetch('/api/openai/auth/login/start', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error('LOGIN_START_FAILED');
+      login = await response.json() as OpenAILoginStartResponse;
+    } catch {
+      authError = 'Login start failed';
+    } finally {
+      authBusy = false;
+    }
+  }
+
+  async function cancelLogin() {
+    authBusy = true;
+    authError = '';
+    try {
+      await fetch('/api/openai/auth/login/cancel', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(login?.loginId ? { loginId: login.loginId } : {}),
+      });
+      login = null;
+    } catch {
+      authError = 'Cancel failed';
+    } finally {
+      authBusy = false;
+    }
+  }
+
+  async function logout() {
+    authBusy = true;
+    authError = '';
+    try {
+      await fetch('/api/openai/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      login = null;
+    } catch {
+      authError = 'Logout failed';
+    } finally {
+      authBusy = false;
+    }
+  }
 </script>
 
 <Card {label}>
   {#snippet badge()}
-    {#if data}
-      <span class="plan-badge">{data.planType.toUpperCase()}</span>
+    {@const badgeLabel = authBadgeLabel()}
+    {#if badgeLabel}
+      <span class="plan-badge">{badgeLabel}</span>
     {/if}
   {/snippet}
 
@@ -79,7 +165,47 @@
       <div class="limit-alert">⚠ 额度已用尽</div>
     {/if}
   {:else}
-    <div class="empty">等待 OpenAI 数据…</div>
+    <div class="empty auth-empty">
+      <div class="auth-title">{authStateText()}</div>
+      <div class="auth-copy">
+        This Docker monitor creates its own Codex login session. Do not upload or copy local ~/.codex/auth.json.
+      </div>
+
+      {#if login}
+        <div class="device-code">
+          <a class="device-url" href={login.verificationUrl} target="_blank" rel="noreferrer">
+            {login.verificationUrl}
+          </a>
+          <div class="user-code">{login.userCode}</div>
+        </div>
+      {/if}
+
+      {#if authStatus?.email_redacted}
+        <div class="auth-meta">{authStatus.email_redacted}</div>
+      {/if}
+      {#if authStatus?.last_error_code}
+        <div class="auth-meta">{authStatus.last_error_code}</div>
+      {/if}
+      {#if authError}
+        <div class="auth-error">{authError}</div>
+      {/if}
+
+      <div class="auth-actions">
+        {#if login || authState === 'login_pending'}
+          <button class="auth-action" type="button" onclick={cancelLogin} disabled={authBusy}>
+            Cancel
+          </button>
+        {:else if authState === 'authenticated'}
+          <button class="auth-action" type="button" onclick={logout} disabled={authBusy}>
+            Logout
+          </button>
+        {:else}
+          <button class="auth-action" type="button" onclick={startLogin} disabled={authBusy}>
+            Login
+          </button>
+        {/if}
+      </div>
+    </div>
   {/if}
 </Card>
 
@@ -93,7 +219,7 @@
     border: 1px solid var(--badge-border);
     padding: 0.15em 0.5em;
     border-radius: var(--radius-sm);
-    letter-spacing: 0.03em;
+    letter-spacing: 0;
   }
 
   .windows {
@@ -165,5 +291,87 @@
     color: var(--text-muted);
     font-size: var(--text-2xl);
     font-family: var(--font-mono);
+  }
+
+  .auth-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    padding-right: var(--space-md);
+    padding-left: var(--space-md);
+  }
+
+  .auth-title {
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
+  .auth-copy,
+  .auth-meta,
+  .auth-error,
+  .device-url {
+    max-width: 100%;
+    font-size: var(--text-md);
+    line-height: 1.5;
+  }
+
+  .auth-copy,
+  .auth-meta {
+    color: var(--text-muted);
+  }
+
+  .auth-error {
+    color: var(--danger);
+  }
+
+  .device-code {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    max-width: 100%;
+  }
+
+  .device-url {
+    color: var(--accent);
+    overflow-wrap: anywhere;
+  }
+
+  .user-code {
+    color: var(--text);
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .auth-actions {
+    display: flex;
+    justify-content: center;
+  }
+
+  .auth-action {
+    min-height: 32px;
+    padding: 0 var(--space-xl);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    font-family: var(--font-mono);
+    font-size: var(--text-md);
+  }
+
+  .auth-action:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .auth-action:disabled {
+    color: var(--text-muted);
+    background: transparent;
   }
 </style>

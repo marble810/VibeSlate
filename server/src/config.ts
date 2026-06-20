@@ -1,6 +1,5 @@
 /**
- * Load server configuration with auto-discovery from known local sources,
- * falling back to config.json / config.jsonc / env vars.
+ * Load server configuration from explicit config files and env vars.
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -11,13 +10,22 @@ const home = homedir();
 export interface ServerConfig {
   deepseek_token: string;
   query_interval_seconds: number;
-  openai_refresh_token: string;
-  openai_account_id: string;
+  openai: OpenAIProviderConfig;
   opencode_workspace_id: string;
   opencode_auth_cookie: string;
   ui: UiConfig;
   auth: PasswordAuthConfig;
   tls: TlsConfig;
+}
+
+export interface OpenAIProviderConfig {
+  enabled: boolean;
+  auth_mode: 'codex_app_server_device_code';
+  codex_home: string;
+  codex_cli_path: string;
+  poll_interval_seconds: number;
+  sqlite_path: string;
+  auth_status_path: string;
 }
 
 export interface UiConfig {
@@ -90,6 +98,81 @@ function parseHexColor(value: unknown, fallback: string): string {
   return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : fallback;
 }
 
+function parseString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+}
+
+function projectPath(relativePath: string): string {
+  return new URL(`../../${relativePath}`, import.meta.url).pathname;
+}
+
+function dataRoot(): string {
+  return process.env.MARBLE_DATA_DIR || projectPath('data/docker');
+}
+
+export function legacyOpenAITokenKeys(config: Record<string, unknown>, env = process.env): string[] {
+  const keys: string[] = [];
+  for (const key of ['openai_refresh_token', 'openai_account_id']) {
+    if (typeof config[key] === 'string' && (config[key] as string).length > 0) keys.push(key);
+  }
+  for (const key of ['OPENAI_REFRESH_TOKEN', 'OPENAI_ACCOUNT_ID', 'OPENAI_TOKEN_STATE_FILE']) {
+    if (typeof env[key] === 'string' && env[key]!.length > 0) keys.push(key);
+  }
+  return keys;
+}
+
+function assertNoLegacyOpenAITokenConfig(config: Record<string, unknown>) {
+  const keys = legacyOpenAITokenKeys(config);
+  if (keys.length === 0) return;
+
+  throw new Error(
+    `[config] Legacy OpenAI token config is not supported: ${keys.join(', ')}. ` +
+      'Remove refresh-token/account-id settings and use the Docker Codex device-code login flow. ' +
+      'VibeSlate now stores Codex-owned auth only under openai.codex_home.',
+  );
+}
+
+function loadOpenAIProviderConfig(openaiCfg: Record<string, unknown>): OpenAIProviderConfig {
+  const root = dataRoot();
+  const enabled = parseBoolean(
+    openaiCfg.enabled,
+    parseBoolean(process.env.OPENAI_ENABLED, false),
+  );
+  const authMode = parseString(
+    openaiCfg.auth_mode ?? process.env.OPENAI_AUTH_MODE,
+    'codex_app_server_device_code',
+  );
+
+  if (authMode !== 'codex_app_server_device_code') {
+    throw new Error(`[config] Unsupported openai.auth_mode: ${authMode}`);
+  }
+
+  return {
+    enabled,
+    auth_mode: 'codex_app_server_device_code',
+    codex_home: parseString(
+      openaiCfg.codex_home ?? process.env.OPENAI_CODEX_HOME,
+      `${root}/codex-home`,
+    ),
+    codex_cli_path: parseString(
+      openaiCfg.codex_cli_path ?? process.env.OPENAI_CODEX_CLI_PATH,
+      projectPath('node_modules/.bin/codex'),
+    ),
+    poll_interval_seconds: parsePositiveInteger(
+      openaiCfg.poll_interval_seconds,
+      parsePositiveInteger(process.env.OPENAI_POLL_INTERVAL_SECONDS, 300),
+    ),
+    sqlite_path: parseString(
+      openaiCfg.sqlite_path ?? process.env.OPENAI_SQLITE_PATH,
+      `${root}/state/usage.sqlite`,
+    ),
+    auth_status_path: parseString(
+      openaiCfg.auth_status_path ?? process.env.OPENAI_AUTH_STATUS_PATH,
+      `${root}/state/auth-status.json`,
+    ),
+  };
+}
+
 // ── Auto-discovery ──
 
 function discoverOpenCodeGoCredentials(): { workspace_id: string; auth_cookie: string } | null {
@@ -112,72 +195,7 @@ function discoverOpenCodeGoCredentials(): { workspace_id: string; auth_cookie: s
   return null;
 }
 
-function discoverDeepSeekToken(): string | null {
-  const dpskmonPaths = [
-    `${process.cwd()}/deepseek-monitor-tui.json`,
-    `${home}/.config/deepseek-monitor-tui/config.json`,
-  ];
-  for (const p of dpskmonPaths) {
-    const cfg = parseJsonFile(p);
-    if (cfg?.platform_token) {
-      console.log(`[config] Auto-discovered DeepSeek token from ${p}`);
-      return cfg.platform_token as string;
-    }
-  }
-  return null;
-}
-
-function discoverOpenAITokens(): { refresh_token: string; account_id: string } | null {
-  const codexAuthPath = `${home}/.codex/auth.json`;
-  const cfg = parseJsonFile(codexAuthPath);
-  if (cfg?.tokens && typeof cfg.tokens === 'object') {
-    const t = cfg.tokens as Record<string, unknown>;
-    if (t.refresh_token && t.account_id) {
-      console.log(`[config] Auto-discovered OpenAI tokens from ${codexAuthPath}`);
-      return {
-        refresh_token: t.refresh_token as string,
-        account_id: t.account_id as string,
-      };
-    }
-  }
-
-  const piCfgPath = `${home}/.pi/extensions/pi-chatgpt-limit.json`;
-  const piCfg = parseJsonFile(piCfgPath);
-  if (piCfg?.openai_refresh_token) {
-    console.log(`[config] Auto-discovered OpenAI tokens from ${piCfgPath}`);
-  }
-
-  return null;
-}
-
 // ── Main loader ──
-
-/**
- * Load OpenAI token state from a runtime persistence file.
- * Returns null if file doesn't exist, is bad JSON, or has invalid values.
- */
-function loadOpenAITokenState(path: string): { openai_refresh_token: string; openai_account_id: string } | null {
-  if (!existsSync(path)) return null;
-
-  try {
-    const raw = readFileSync(path, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-
-    const refresh = (parsed as Record<string, unknown>).openai_refresh_token;
-    const account = (parsed as Record<string, unknown>).openai_account_id;
-
-    if (typeof refresh !== 'string' || refresh.length === 0) return null;
-
-    return {
-      openai_refresh_token: refresh,
-      openai_account_id: typeof account === 'string' ? account : '',
-    };
-  } catch {
-    console.warn(`[config] Warning: OpenAI token state file at ${path} is invalid — ignoring.`);
-    return null;
-  }
-}
 
 export function loadConfig(): ServerConfig {
   const explicitCfgPath = process.env.MARBLE_CONFIG_FILE;
@@ -206,18 +224,22 @@ export function loadConfig(): ServerConfig {
         ...asObject(fileCfg.ui),
         ...asObject(parsed.ui),
       },
+      openai: {
+        ...asObject(fileCfg.openai),
+        ...asObject(parsed.openai),
+      },
     };
   }
 
-  const deepseek = (fileCfg?.deepseek_token as string) || discoverDeepSeekToken() || '';
-  const openaiRefresh = (fileCfg?.openai_refresh_token as string) || '';
-  const openaiAccount = (fileCfg?.openai_account_id as string) || '';
+  const deepseek = (fileCfg?.deepseek_token as string) || '';
   const interval = (fileCfg?.query_interval_seconds as number) || 60;
   const opencodeWsId = (fileCfg?.opencode_workspace_id as string) || '';
   const opencodeCookie = (fileCfg?.opencode_auth_cookie as string) || '';
+  const openaiCfg = asObject(fileCfg?.openai);
   const uiCfg = asObject(fileCfg?.ui);
   const authCfg = asObject(fileCfg?.auth);
   const tlsCfg = asObject(fileCfg?.tls);
+  assertNoLegacyOpenAITokenConfig(fileCfg);
 
   let finalOpencodeWsId = opencodeWsId;
   let finalOpencodeCookie = opencodeCookie;
@@ -228,27 +250,8 @@ export function loadConfig(): ServerConfig {
       if (!finalOpencodeCookie) finalOpencodeCookie = discovered.auth_cookie;
     }
   }
-  let finalRefresh = openaiRefresh;
-  let finalAccount = openaiAccount;
-  if (!finalRefresh || !finalAccount) {
-    const discovered = discoverOpenAITokens();
-    if (discovered && !finalRefresh) finalRefresh = discovered.refresh_token;
-    if (discovered && !finalAccount) finalAccount = discovered.account_id;
-  }
-
   const dsToken = deepseek || process.env.DEEPSEEK_PLATFORM_TOKEN || '';
-  let oaRefresh = finalRefresh || process.env.OPENAI_REFRESH_TOKEN || '';
-  let oaAccount = finalAccount || process.env.OPENAI_ACCOUNT_ID || '';
-
-  // ── Runtime token state override (Docker token persistence) ──
-  const tokenStatePath = process.env.OPENAI_TOKEN_STATE_FILE;
-  if (tokenStatePath) {
-    const stateTokens = loadOpenAITokenState(tokenStatePath);
-    if (stateTokens) {
-      if (stateTokens.openai_refresh_token) oaRefresh = stateTokens.openai_refresh_token;
-      if (stateTokens.openai_account_id) oaAccount = stateTokens.openai_account_id;
-    }
-  }
+  const openai = loadOpenAIProviderConfig(openaiCfg);
   const authEnabled = parseBoolean(
     authCfg.enabled,
     parseBoolean(process.env.AUTH_ENABLED, false),
@@ -289,12 +292,11 @@ export function loadConfig(): ServerConfig {
   if (!dsToken) {
     console.warn('[config] DeepSeek token not found.');
     console.warn('  → Set DEEPSEEK_PLATFORM_TOKEN in docker/.env for Docker deployments');
-    console.warn('  → Or create server/config.json for local development');
+    console.warn('  → Or set deepseek_token in server/config.jsonc for local development');
   }
-  if (!oaRefresh) {
-    console.warn('[config] OpenAI token not found.');
-    console.warn('  → Set OPENAI_REFRESH_TOKEN and OPENAI_ACCOUNT_ID in docker/.env');
-    console.warn('  → Or create server/config.json for local development');
+  if (!openai.enabled) {
+    console.warn('[config] OpenAI Codex app-server is disabled.');
+    console.warn('  → Set OPENAI_ENABLED=true or openai.enabled=true to enable Docker device-code login');
   }
   if (!finalOpencodeWsId || !finalOpencodeCookie) {
     console.warn('[config] OpenCode Go credentials not found.');
@@ -310,8 +312,7 @@ export function loadConfig(): ServerConfig {
   return {
     deepseek_token: dsToken,
     query_interval_seconds: interval,
-    openai_refresh_token: oaRefresh,
-    openai_account_id: oaAccount,
+    openai,
     opencode_workspace_id: finalOpencodeWsId,
     opencode_auth_cookie: finalOpencodeCookie,
     ui: {

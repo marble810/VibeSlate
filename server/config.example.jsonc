@@ -8,16 +8,22 @@
   // 获取方式：浏览器登录 platform.deepseek.com → F12 → Network
   // → 任意 XHR 请求 → Request Headers → Authorization: Bearer xxx
   // 复制 Bearer 后面的值（不含 "Bearer "）
+  // 注意：dev 不会自动读取 deepseek-monitor-tui 的本地配置。
   "deepseek_token": "your-bearer-token-here",
 
   // ── OpenAI Codex / ChatGPT ──
-  // 获取方式：安装 Codex CLI/App → 登录 ChatGPT 账号后，
-  // 从 ~/.codex/auth.json → tokens.refresh_token 和 tokens.account_id 复制
-  // 或运行宿主机脚本：
-  //   macOS / Linux: ./docker/GetCodexAuthInfo.sh
-  //   PowerShell:    .\docker\GetCodexAuthInfo.ps1
-  "openai_refresh_token": "rt.xxx...",
-  "openai_account_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  // Docker 和 dev 都通过独立 CODEX_HOME + Codex app-server 管理登录。
+  // 不要复制宿主机 ~/.codex/auth.json，也不要配置 refresh token。
+  // 启动后在 OpenAI 卡片里使用 device-code login。
+  "openai": {
+    "enabled": true,
+    "auth_mode": "codex_app_server_device_code",
+    "codex_home": "../data/docker/codex-home",
+    "codex_cli_path": "../node_modules/.bin/codex",
+    "poll_interval_seconds": 300,
+    "sqlite_path": "../data/docker/state/usage.sqlite",
+    "auth_status_path": "../data/docker/state/auth-status.json"
+  },
 
   // ── OpenCode Go ──
   // 获取方式：浏览器打开 opencode.ai → 进入 Go 工作区 →
