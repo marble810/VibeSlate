@@ -2,70 +2,70 @@
 
 # VibeSlate
 
-> Turn your spare phones, tablets and e-ink readers into always-on LLM usage monitors.
+> Turn spare phones, tablets and e-ink readers into always-on LLM usage monitors.
 >
-> 将你的闲置手机、平板和电纸书变成常亮 LLM 用量监控器。
+> 将闲置手机、平板和电纸书变成常亮 LLM 用量监控器。
+
+**Alpha 2.0**：Docker-only public alpha，重点补齐 OpenAI/Codex app-server device-code 登录、Docker `.env` 配置、密码保护、LAN HTTPS 与 PWA kiosk 使用路径。
 
 </div>
 
+## 当前能力
+
+- Provider 卡片：DeepSeek、OpenAI / Codex、OpenCode Go，以及预留硬件监控位。
+- 实时更新：后端通过 SSE 推送 usage、认证状态和错误信息。
+- OpenAI 登录：Docker/dev 都使用独立 `CODEX_HOME` + Codex app-server device-code flow，不读取宿主机 `~/.codex/auth.json`。
+- Docker 部署：公开部署路径只需要复制 `docker/.env.example` 和 `docker/docker-compose.example.yml`。
+- Kiosk / PWA：适合常亮设备，支持 manifest、Service Worker、Wake Lock 与响应式卡片布局。
+- 可选安全项：应用层密码保护、LAN HTTPS/root CA 下载页、Argon2id password hash。
+
 ## Docker Alpha 部署
+
+> Docker 是唯一面向用户的部署方式；本地开发仍使用 Bun。
 
 ```bash
 cp docker/docker-compose.example.yml docker/docker-compose.yml
 cp docker/.env.example docker/.env
+# 编辑 docker/.env，填入需要启用的 provider/auth/TLS 配置
 docker compose -f docker/docker-compose.yml up -d app
 ```
 
-默认地址是 `http://localhost:12001`。
-OpenAI/Codex 首次登录可以运行 `bun run docker:openai:login`（仓库便捷命令），也可以用纯 Docker 命令：
+默认地址：`http://localhost:12001`。
+
+OpenAI/Codex 首次登录推荐在页面 `OpenAI` 卡片中点击 `Login`，也可以使用 CLI：
 
 ```bash
+# 仓库便捷命令
+bun run docker:openai:login
+
+# 或纯 Docker 命令
 docker compose -f docker/docker-compose.yml exec --workdir /app app bun run openai:auth:login
 ```
 
-也可以在页面的 `OpenAI` 卡片里完成 device-code login。
-
 部署时只需要维护两个本地文件：
 
-- `docker/.env`
-  用户配置入口。provider 凭证、OpenAI app-server、密码保护、LAN HTTPS 和 UI 设置都放这里。
-- `docker/docker-compose.yml`
-  Docker 结构层配置。通常只需要从 example 复制一次，不需要日常编辑。
+- `docker/.env`：用户配置入口。provider 凭证、OpenAI app-server、密码保护、LAN HTTPS 和 UI 设置都放这里。
+- `docker/docker-compose.yml`：Docker 结构层配置。通常只需要从 example 复制一次，不需要日常编辑。
 
-`docker/.env` 中由用户手动填写的主要字段：
+`docker/.env` 中常用字段：
 
-- `HOST`
-- `PORT`
-- `DEEPSEEK_PLATFORM_TOKEN`
-- `OPENAI_ENABLED`
-- `OPENAI_CODEX_HOME`
-- `OPENAI_CODEX_CLI_PATH`
-- `OPENAI_POLL_INTERVAL_SECONDS`
-- `OPENAI_SQLITE_PATH`
-- `OPENAI_AUTH_STATUS_PATH`
-- `OPENCODE_WORKSPACE_ID`
-- `OPENCODE_AUTH_COOKIE`
-- `AUTH_ENABLED`
-- `AUTH_PASSWORD_HASH`
-- `AUTH_COOKIE_SECURE`
-- `AUTH_SESSION_TTL_SECONDS`
-- `AUTH_COOKIE_NAME`
-- `TLS_ENABLED`
-- `TLS_CERT_FILE`
-- `TLS_KEY_FILE`
-- `TLS_ROOT_CA_FILE`
-- `UI_CUSTOM_ACCENT`
+- Runtime：`HOST`、`PORT`、`MARBLE_DATA_DIR`
+- DeepSeek：`DEEPSEEK_PLATFORM_TOKEN`
+- OpenAI/Codex：`OPENAI_ENABLED`、`OPENAI_CODEX_HOME`、`OPENAI_CODEX_CLI_PATH`、`OPENAI_POLL_INTERVAL_SECONDS`、`OPENAI_SQLITE_PATH`、`OPENAI_AUTH_STATUS_PATH`
+- OpenCode Go：`OPENCODE_WORKSPACE_ID`、`OPENCODE_AUTH_COOKIE`
+- Password auth：`AUTH_ENABLED`、`AUTH_PASSWORD_HASH`、`AUTH_COOKIE_SECURE`、`AUTH_SESSION_TTL_SECONDS`、`AUTH_COOKIE_NAME`
+- LAN HTTPS：`TLS_ENABLED`、`TLS_CERT_FILE`、`TLS_KEY_FILE`、`TLS_ROOT_CA_FILE`
+- UI：`UI_CUSTOM_ACCENT`
 
-`AUTH_PASSWORD_HASH` 如果使用 Argon2id hash，粘贴到 `docker/.env` 时请用单引号包住整段值，避免其中的 `$` 被错误解析。
+`AUTH_PASSWORD_HASH` 如果使用 Argon2id hash，粘贴到 `docker/.env` 时请用单引号包住整段值，避免其中的 `$` 被 shell/env 解析。
 
 ## Provider 凭证
 
-- `OpenAI`: 启动 Docker 后运行 `bun run docker:openai:login` 或上面的纯 Docker 命令，或在 OpenAI 卡片里点击 `Login`，按显示的 device code 完成 ChatGPT/Codex 登录。
-  VibeSlate 会在容器自己的 `data/docker/codex-home/auth.json` 中保存 Codex-owned auth state；不要上传、复制或粘贴宿主机 `~/.codex/auth.json`。
-- `DeepSeek`: 浏览器登录 `platform.deepseek.com`，从 DevTools 网络请求的 `Authorization` header 里取 Bearer token。
-- `OpenCode Go`: 从工作区 URL 获取 `wrk_...`，再从浏览器 Cookie 中取 `auth`。
+- **OpenAI / Codex**：启动 Docker 后在 OpenAI 卡片里完成 device-code login，或运行 `bun run docker:openai:login`。VibeSlate 会在容器自己的 `data/docker/codex-home/auth.json` 中保存 Codex-owned auth state；不要上传、复制或粘贴宿主机 `~/.codex/auth.json`。
+- **DeepSeek**：浏览器登录 `platform.deepseek.com`，从 DevTools 网络请求的 `Authorization` header 中取 Bearer token，填入 `DEEPSEEK_PLATFORM_TOKEN`。
+- **OpenCode Go**：从工作区 URL 获取 `wrk_...`，再从浏览器 Cookie 中取 `auth`，分别填入 `OPENCODE_WORKSPACE_ID` 与 `OPENCODE_AUTH_COOKIE`。
 
-更多 Docker 细节见 [docs/DOCKER_DEPLOYMENT.md](/Users/liangkeren/Coding/marble-panel/docs/DOCKER_DEPLOYMENT.md)。
+更多 Docker 细节见 [docs/DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md)。
 
 ## 本地开发
 
@@ -74,15 +74,39 @@ bun install
 bun run dev
 ```
 
-本地开发配置使用 `server/config.jsonc`。
+本地开发配置使用 `server/config.jsonc`（可从 `server/config.example.jsonc` 复制）。
 
-- `DeepSeek` 凭证需要手动写入 `server/config.jsonc` 或显式环境变量。
+- DeepSeek 凭证需要手动写入 `server/config.jsonc` 或显式环境变量。
 - OpenAI dev 也使用独立 `openai.codex_home` + backend device-code login；先运行 `bun run dev`，再在另一个终端运行 `bun run openai:auth:login` 连接正在运行的本地后端。
-- 如果 dev 后端不在默认 `http://localhost:12001`，给 login 命令传 `--base-url <url>`；如果当前终端无法交互读取密码，可只对该命令设置 `VIBESLATE_PASSWORD='...'`。
+- 如果 dev 后端不在默认 `http://localhost:12001`，给 login 命令传 `--base-url <url>`。
+- 如果当前终端无法交互读取密码，可只对该命令设置 `VIBESLATE_PASSWORD='...'`。
 - dev 不会自动从 `deepseek-monitor-tui`、宿主机 `~/.codex/auth.json` 或其他宿主机登录状态读取 auth。
+
+## 验证命令
+
+```bash
+bun x tsc -p server/tsconfig.json --noEmit
+bun test server/src/*.test.ts scripts/openai-auth-login-client.test.ts
+bun run build
+bun run check:codex-app-server-schema
+docker compose -f docker/docker-compose.example.yml config
+```
+
+Docker runtime 可选烟测：
+
+```bash
+bun run docker:smoke
+```
+
+## Alpha 2.0 发布前仍需人工确认
+
+- 使用真实 ChatGPT/Codex 账号在 Docker 容器内完成 device-code 登录。
+- 确认 `data/docker/codex-home/auth.json` 创建权限正确，且不依赖宿主机 Codex 状态。
+- 确认账号 rate-limit 轮询、SQLite 快照写入与 UI/SSE 广播在真实账号下正常。
+- clean checkout + 公开镜像 Docker-only 主路径按 `.env` 的 auth/TLS 配置重新验收。
+- Provider 卡片的错误/空状态和连接状态 UI 还可以继续统一打磨。
 
 ## 说明
 
-- Docker 是唯一部署方式；日常开发仍使用 `bun run dev`。
-- VibeSlate 不接管反向代理。TLS、限流、Fail2Ban 由用户自己的反代处理。
+- VibeSlate 不接管反向代理；公网 TLS、限流、Fail2Ban 建议交给用户自己的 Caddy / Nginx / Traefik 等反代处理。
 - 当前仓库许可证为 `AGPL-3.0-only`。
