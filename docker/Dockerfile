@@ -33,8 +33,7 @@ WORKDIR /app
 RUN bun install --frozen-lockfile --production
 
 COPY server/ /app/server/
-COPY scripts/openai-auth-login.ts /app/scripts/openai-auth-login.ts
-COPY scripts/openai-auth-login-client.ts /app/scripts/openai-auth-login-client.ts
+COPY scripts/ /app/scripts/
 COPY --from=frontend /app/web/dist /app/web/dist
 WORKDIR /app/server
 

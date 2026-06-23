@@ -11,7 +11,7 @@ name: vibeslate
 
 services:
   app:
-    image: ghcr.io/marble810/vibeslate:v0.1.0-alpha.1
+    image: ghcr.io/marble810/vibeslate:v0.1.0-alpha.2
     container_name: vibeslate
     env_file:
       - path: ./.env.example

@@ -175,8 +175,10 @@ function loadOpenAIProviderConfig(openaiCfg: Record<string, unknown>): OpenAIPro
 
 // ── Auto-discovery ──
 
-function discoverOpenCodeGoCredentials(): { workspace_id: string; auth_cookie: string } | null {
-  const paths = [
+export function discoverOpenCodeGoCredentials(
+  customSearchPaths?: string[],
+): { workspace_id: string; auth_cookie: string } | null {
+  const paths = customSearchPaths ?? [
     `${home}/.config/opencode-bar/opencode-go.json`,
     `${home}/.config/opencode-quota/opencode-go.json`,
     `${home}/Library/Application Support/opencode-bar/opencode-go.json`,
@@ -197,7 +199,7 @@ function discoverOpenCodeGoCredentials(): { workspace_id: string; auth_cookie: s
 
 // ── Main loader ──
 
-export function loadConfig(): ServerConfig {
+export function loadConfig(discoveryPaths?: string[]): ServerConfig {
   const explicitCfgPath = process.env.MARBLE_CONFIG_FILE;
   const configDir = new URL('..', import.meta.url).pathname;
   const cfgPaths = explicitCfgPath
@@ -241,10 +243,13 @@ export function loadConfig(): ServerConfig {
   const tlsCfg = asObject(fileCfg?.tls);
   assertNoLegacyOpenAITokenConfig(fileCfg);
 
-  let finalOpencodeWsId = opencodeWsId;
-  let finalOpencodeCookie = opencodeCookie;
+  // Resolve OpenCode Go credentials with precedence: config > env > discovery.
+  // Partial-fill: if one field is supplied at a higher level and the other is
+  // missing, lower-precedence sources may fill only the missing field.
+  let finalOpencodeWsId = opencodeWsId || process.env.OPENCODE_WORKSPACE_ID || '';
+  let finalOpencodeCookie = opencodeCookie || process.env.OPENCODE_AUTH_COOKIE || '';
   if (!finalOpencodeWsId || !finalOpencodeCookie) {
-    const discovered = discoverOpenCodeGoCredentials();
+    const discovered = discoverOpenCodeGoCredentials(discoveryPaths);
     if (discovered) {
       if (!finalOpencodeWsId) finalOpencodeWsId = discovered.workspace_id;
       if (!finalOpencodeCookie) finalOpencodeCookie = discovered.auth_cookie;
