@@ -21,16 +21,20 @@ LABEL org.opencontainers.image.description="LLM usage and spare-device info slat
 LABEL org.opencontainers.image.source="https://github.com/marble810/vibeslate"
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 
+ARG VIBESLATE_IMAGE_RELEASE=v0.1.0-alpha.3
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends nodejs ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && printf '%s\n' "$VIBESLATE_IMAGE_RELEASE" > /usr/local/share/vibeslate-image-release
 
 COPY bun.lock /app/bun.lock
 COPY package.json /app/package.json
 COPY server/package.json /app/server/package.json
 COPY web/package.json /app/web/package.json
 WORKDIR /app
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production \
+  && printf '%s\n' "$VIBESLATE_IMAGE_RELEASE" > /app/.dependency-layer-release
 
 COPY server/ /app/server/
 COPY scripts/ /app/scripts/

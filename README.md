@@ -32,15 +32,15 @@ docker compose -f docker/docker-compose.yml up -d app
 
 默认地址：`http://localhost:12001`。
 
-当前推荐镜像：`ghcr.io/marble810/vibeslate:v0.1.0-alpha.2`。如果从 `v0.1.0-alpha.1` 升级，请先把已复制的 `docker/docker-compose.yml` 中 `services.app.image` 改为该新 tag，然后拉取新镜像并重建容器：
+当前推荐镜像：`ghcr.io/marble810/vibeslate:v0.1.0-alpha.3`。如果从 `v0.1.0-alpha.1` 或 `v0.1.0-alpha.2` 升级，请先把已复制的 `docker/docker-compose.yml` 中 `services.app.image` 改为该新 tag，然后拉取新镜像并重建容器：
 
 ```bash
-perl -0pi -e 's#ghcr.io/marble810/vibeslate:v0\.1\.0-alpha\.1#ghcr.io/marble810/vibeslate:v0.1.0-alpha.2#' docker/docker-compose.yml
+perl -0pi -e 's#ghcr.io/marble810/vibeslate:v0\.1\.0-alpha\.[12]#ghcr.io/marble810/vibeslate:v0.1.0-alpha.3#' docker/docker-compose.yml
 docker compose -f docker/docker-compose.yml pull app
 docker compose -f docker/docker-compose.yml up -d app
 ```
 
-OpenAI/Codex 首次登录推荐在页面 `OpenAI` 卡片中点击 `Login`，也可以使用 CLI（`v0.1.0-alpha.2` 起镜像内已包含所需 `scripts/` 文件）：
+OpenAI/Codex 首次登录推荐在页面 `OpenAI` 卡片中点击 `Login`，也可以使用 CLI（`v0.1.0-alpha.3` 起镜像内已包含所需 `scripts/` 文件）：
 
 ```bash
 # 仓库便捷命令
@@ -71,7 +71,7 @@ docker compose -f docker/docker-compose.yml exec --workdir /app app bun run open
 
 - **OpenAI / Codex**：启动 Docker 后在 OpenAI 卡片里完成 device-code login，或运行 `bun run docker:openai:login`。VibeSlate 会在容器自己的 `data/docker/codex-home/auth.json` 中保存 Codex-owned auth state；不要上传、复制或粘贴宿主机 `~/.codex/auth.json`。
 - **DeepSeek**：浏览器登录 `platform.deepseek.com`，从 DevTools 网络请求的 `Authorization` header 中取 Bearer token，填入 `DEEPSEEK_PLATFORM_TOKEN`。
-- **OpenCode Go**：从工作区 URL 获取 `wrk_...`，再从浏览器 Cookie 中取 `auth`，分别填入 `docker/.env` 中的 `OPENCODE_WORKSPACE_ID` 与 `OPENCODE_AUTH_COOKIE`。`v0.1.0-alpha.2` 起 Docker 部署会直接读取这两个环境变量；也仍兼容容器内自动发现 JSON 文件。
+- **OpenCode Go**：从工作区 URL 获取 `wrk_...`，再从浏览器 Cookie 中取 `auth`，分别填入 `docker/.env` 中的 `OPENCODE_WORKSPACE_ID` 与 `OPENCODE_AUTH_COOKIE`。`v0.1.0-alpha.3` 起 Docker 部署会直接读取这两个环境变量；也仍兼容容器内自动发现 JSON 文件。
 
 更多 Docker 细节见 [docs/DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md)。
 
