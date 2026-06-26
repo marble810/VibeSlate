@@ -2,14 +2,28 @@
   import { onDestroy } from 'svelte';
   import { DropdownMenu } from 'bits-ui';
   import { theme } from '$lib/stores';
-  import { DEFAULT_THEME, type ThemeId } from '$lib/theme';
+  import {
+    DEFAULT_SELECTION,
+    type ThemeSelection,
+  } from '$lib/theme';
   import EinkCheckIcon from './EinkCheckIcon.svelte';
 
-  let currentTheme = $state<ThemeId>(DEFAULT_THEME);
-  const unsubscribeTheme = theme.subscribe((val) => { currentTheme = val; });
+  let currentSelection = $state<ThemeSelection>(DEFAULT_SELECTION);
+  const unsubscribeTheme = theme.subscribe((val) => { currentSelection = val; });
 
-  function setTheme(id: ThemeId) {
-    theme.set(id);
+  let mainOpen = $state(false);
+
+  function setSelection(selection: ThemeSelection) {
+    theme.set(selection);
+  }
+
+  function isSelected(family: string, palette?: string): boolean {
+    if (currentSelection.family !== family) return false;
+    if (family === 'default') {
+      const selPalette = currentSelection.palette ?? 'built-in';
+      return selPalette === (palette ?? 'built-in');
+    }
+    return true;
   }
 
   onDestroy(() => {
@@ -18,7 +32,7 @@
 </script>
 
 <div class="brand-menu-wrapper">
-  <DropdownMenu.Root>
+  <DropdownMenu.Root bind:open={mainOpen}>
     <DropdownMenu.Trigger class="brand-trigger">
       <img class="logo" src="/icons/icon-192.png" alt="" />
       <span class="version">vibeslate</span>
@@ -33,47 +47,82 @@
         <section class="menu-block" aria-labelledby="footer-theme-heading">
           <div id="footer-theme-heading" class="menu-block-title">Theme</div>
           <div class="menu-divider"></div>
+
           <div class="theme-list">
+            <!-- Sharp family — card container with sub-options -->
+            <div class="family-card">
+              <div class="family-card-header">
+                <span
+                  class="theme-swatch"
+                  class:default={currentSelection.family === 'default' && (currentSelection.palette ?? 'built-in') === 'built-in'}
+                  class:custom={currentSelection.family === 'default' && currentSelection.palette === 'custom-color'}
+                >
+                </span>
+                <span class="item-label">Sharp</span>
+              </div>
+              <div class="card-options">
+                <DropdownMenu.Item
+                  class="brand-menu-item palette-item"
+                  closeOnSelect={false}
+                  onSelect={() => setSelection({ family: 'default', palette: 'built-in' })}
+                >
+                  <span class="item-main">
+                    <span class="theme-swatch default"></span>
+                    <span class="item-label">Default</span>
+                  </span>
+                  {#if isSelected('default', 'built-in')}
+                    <span class="item-check">
+                      <EinkCheckIcon size="12px" />
+                    </span>
+                  {/if}
+                </DropdownMenu.Item>
+                <div class="palette-divider"></div>
+                <DropdownMenu.Item
+                  class="brand-menu-item palette-item"
+                  closeOnSelect={false}
+                  onSelect={() => setSelection({ family: 'default', palette: 'custom-color' })}
+                >
+                  <span class="item-main">
+                    <span class="theme-swatch custom"></span>
+                    <span class="item-label">Custom Color</span>
+                  </span>
+                  {#if isSelected('default', 'custom-color')}
+                    <span class="item-check">
+                      <EinkCheckIcon size="12px" />
+                    </span>
+                  {/if}
+                </DropdownMenu.Item>
+              </div>
+            </div>
+
+            <!-- Rounded — peer top-level family -->
             <DropdownMenu.Item
-              class="brand-menu-item"
+              class="eink-item"
               closeOnSelect={false}
-              onSelect={() => setTheme('default')}
+              onSelect={() => setSelection({ family: 'rounded' })}
             >
               <span class="item-main">
-                <span class="theme-swatch default"></span>
-                <span class="item-label">Default</span>
+                <span class="theme-swatch rounded"></span>
+                <span class="item-label">Rounded</span>
               </span>
-              {#if currentTheme === 'default'}
+              {#if isSelected('rounded')}
                 <span class="item-check">
                   <EinkCheckIcon size="12px" />
                 </span>
               {/if}
             </DropdownMenu.Item>
+
+            <!-- E-INK — peer top-level family, no card background -->
             <DropdownMenu.Item
-              class="brand-menu-item"
+              class="eink-item"
               closeOnSelect={false}
-              onSelect={() => setTheme('custom-accent')}
-            >
-              <span class="item-main">
-                <span class="theme-swatch custom"></span>
-                <span class="item-label">Custom Accent</span>
-              </span>
-              {#if currentTheme === 'custom-accent'}
-                <span class="item-check">
-                  <EinkCheckIcon size="12px" />
-                </span>
-              {/if}
-            </DropdownMenu.Item>
-            <DropdownMenu.Item
-              class="brand-menu-item"
-              closeOnSelect={false}
-              onSelect={() => setTheme('eink')}
+              onSelect={() => setSelection({ family: 'eink' })}
             >
               <span class="item-main">
                 <span class="theme-swatch eink"></span>
                 <span class="item-label">E-INK</span>
               </span>
-              {#if currentTheme === 'eink'}
+              {#if isSelected('eink')}
                 <span class="item-check">
                   <EinkCheckIcon size="12px" />
                 </span>
@@ -234,6 +283,82 @@
     flex-shrink: 0;
   }
 
+  /* ── Family card (Sharp) — outline only, no background ── */
+  .family-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md) var(--space-md) var(--space-sm);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .family-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: 0 var(--space-sm) var(--space-md);
+    font-family: var(--font-mono);
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .card-options {
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--space-xs);
+  }
+
+  .palette-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0 var(--space-md);
+  }
+
+  :global(.palette-item) {
+    min-height: 40px;
+    border: none;
+    border-radius: 0;
+  }
+
+  :global(.palette-item[data-highlighted]) {
+    border: none;
+  }
+
+  /* ── Top-level theme family items: consistent font style for Sharp, E-INK, and future themes ── */
+  :global(.eink-item) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    font-family: var(--font-mono);
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: none;
+  }
+
+  :global(.eink-item:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  :global(.eink-item[data-highlighted]) {
+    color: var(--text);
+    background: none;
+  }
+
   .theme-swatch {
     position: relative;
     width: 16px;
@@ -248,6 +373,11 @@
 
     &.custom {
       background: var(--custom-accent);
+    }
+
+    &.rounded {
+      background: #8b5cf6;
+      border-radius: 24px;
     }
 
     &.eink {
@@ -306,5 +436,4 @@
       transform: none;
     }
   }
-
 </style>

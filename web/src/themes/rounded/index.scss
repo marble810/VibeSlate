@@ -1,0 +1,63 @@
+/* Rounded family (data-theme: rounded) — Sharp tokens, 24px corner radius */
+
+:root[data-theme="rounded"] {
+  /* Typography */
+  --font-sans:
+    "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono:
+    "JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  --font-size-data-value: 0.8rem;
+  --text-xs: 0.6rem;
+  --text-sm: 0.55rem;
+  --text-md: 0.65rem;
+  --text-lg: 0.75rem;
+  --text-xl: 0.8rem;
+  --text-2xl: 0.85rem;
+  --text-3xl: 1.1rem;
+
+  /* Spacing / gaps */
+  --space-xs: 0.1rem;
+  --space-sm: 0.3rem;
+  --space-md: 0.5rem;
+  --space-lg: 0.75rem;
+  --space-xl: 1rem;
+  --space-2xl: 1.5rem;
+  --space-3xl: 2rem;
+  --space-4xl: 3rem;
+  --card-gap: var(--space-xs);
+  --card-padding: var(--space-xl);
+
+  /* Radius */
+  --radius: 24px;
+  --radius-sm: 24px;
+
+  /* Color — surfaces & content */
+  --bg: #000000;
+  --surface: #141414;
+  --surface-hover: #1e1e1e;
+  --text: #f1f5f9;
+  --text-muted: #888888;
+  --border: #2a2a2a;
+
+  /* Color — accent */
+  --accent: #8b5cf6;
+  --accent-dim: #7c3aed;
+
+  /* Color — semantic */
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+
+  /* Badge */
+  --badge-bg: color-mix(in srgb, var(--accent) 15%, transparent);
+  --badge-text: var(--accent);
+  --badge-border: transparent;
+
+  /* Shadows & status glow */
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --status-glow-connected: 0 0 6px var(--success);
+  --status-glow-active: 0 0 4px var(--success);
+  --status-glow-warning: 0 0 4px var(--warning);
+}

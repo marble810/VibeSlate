@@ -8,6 +8,7 @@
     normalizeHexColor,
     readStoredTheme,
   } from '$lib/theme';
+  import type { ThemeSelection, ThemeTransitionKind } from '$lib/theme';
   import { connectWakeLock } from '$lib/wakeLock';
   import type { DeepSeekData, OpenAIAuthStatus, OpenAIData, OpenCodeGoData } from '$lib/types';
   import Footer from './components/Footer.svelte';
@@ -21,11 +22,18 @@
   let ocData = $state<OpenCodeGoData | null>(null);
   let disconnectSSE: (() => void) | null = null;
   let disconnectWakeLock: (() => void) | null = null;
-  let activeTheme = $state(readStoredTheme());
+  let activeSelection = $state<ThemeSelection>(readStoredTheme());
   let activeCustomAccent = $state(DEFAULT_CUSTOM_ACCENT);
 
-  function syncTheme() {
-    applyThemeToDocument(activeTheme, activeCustomAccent);
+  function transitionKindForSelection(
+    previous: ThemeSelection,
+    next: ThemeSelection,
+  ): ThemeTransitionKind {
+    return previous.family === next.family ? 'palette' : 'theme';
+  }
+
+  function syncTheme(transitionKind: ThemeTransitionKind = 'theme') {
+    applyThemeToDocument(activeSelection, activeCustomAccent, transitionKind);
   }
 
   async function loadUiConfig() {
@@ -50,12 +58,13 @@
   const unsubscribeOpenAIAuth = openaiAuthStatus.subscribe((val) => { oaAuth = val; });
   const unsubscribeOpenCode = opencodeData.subscribe((val) => { ocData = val; });
   const unsubscribeTheme = theme.subscribe((val) => {
-    activeTheme = val;
-    syncTheme();
+    const previousSelection = activeSelection;
+    activeSelection = val;
+    syncTheme(transitionKindForSelection(previousSelection, val));
   });
   const unsubscribeCustomAccent = customAccent.subscribe((val) => {
     activeCustomAccent = val;
-    syncTheme();
+    syncTheme('palette');
   });
 
   onDestroy(() => {

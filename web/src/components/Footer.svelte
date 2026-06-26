@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { connected, swStatus, wakeLockStatus, theme } from '$lib/stores';
-  import type { ThemeId } from '$lib/theme';
-  import { DEFAULT_THEME } from '$lib/theme';
+  import type { ThemeSelection } from '$lib/theme';
+  import { DEFAULT_SELECTION } from '$lib/theme';
   import type { WakeLockStatus } from '$lib/types';
   import EinkCheckIcon from './EinkCheckIcon.svelte';
   import EinkCrossIcon from './EinkCrossIcon.svelte';
@@ -11,9 +11,9 @@
   let isConnected = $state(false);
   let swState = $state('unsupported');
   let wakeState = $state<WakeLockStatus>('unsupported');
-  let currentTheme = $state<ThemeId>(DEFAULT_THEME);
+  let currentSelection = $state<ThemeSelection>(DEFAULT_SELECTION);
 
-  const isEink = $derived(currentTheme === 'eink');
+  const isEink = $derived(currentSelection.family === 'eink');
 
   const pwaReady = $derived(swState === 'active' || swState === 'updated');
   const pwaLabel = $derived(
@@ -27,7 +27,7 @@
   const unsubscribeConnected = connected.subscribe((val) => { isConnected = val; });
   const unsubscribeSwStatus = swStatus.subscribe((val) => { swState = val; });
   const unsubscribeWakeLockStatus = wakeLockStatus.subscribe((val) => { wakeState = val; });
-  const unsubscribeTheme = theme.subscribe((val) => { currentTheme = val; });
+  const unsubscribeTheme = theme.subscribe((val) => { currentSelection = val; });
 
   onDestroy(() => {
     unsubscribeConnected();

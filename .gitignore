@@ -20,9 +20,11 @@ PLAN/
 progress.md
 *.md
 !README.md
+!DESIGN.md
 !docs/
 !docs/**/*.md
 !.github/copilot-instructions.md
+!.agents/skills/**/*.md
 
 # mkcert local HTTPS certs
 web/key.pem

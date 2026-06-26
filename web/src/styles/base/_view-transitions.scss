@@ -1,0 +1,80 @@
+/* Palette transition (color change, same family): fast opacity cross-fade */
+:root.theme-fading.theme-transition-palette::view-transition-old(root),
+:root.theme-fading.theme-transition-palette::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-duration: var(--palette-transition-duration);
+  animation-timing-function: var(--theme-transition-ease);
+  animation-fill-mode: both;
+}
+
+:root.theme-fading.theme-transition-palette::view-transition-old(root) {
+  animation-name: theme-fade-out;
+}
+
+:root.theme-fading.theme-transition-palette::view-transition-new(root) {
+  animation-name: theme-fade-in;
+}
+
+@keyframes theme-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes theme-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Theme transition (family switch): bottom-to-top slow reveal */
+:root.theme-fading.theme-transition-theme::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+:root.theme-fading.theme-transition-theme::view-transition-new(root) {
+  animation: theme-reveal-up-hard var(--theme-transition-duration)
+    var(--theme-transition-ease) both;
+  mix-blend-mode: normal;
+}
+
+@supports (
+  (mask-image: linear-gradient(#000000, transparent)) or
+    (-webkit-mask-image: linear-gradient(#000000, transparent))
+) {
+  :root.theme-fading.theme-transition-theme::view-transition-new(root) {
+    --theme-reveal-edge: calc(100% + var(--theme-reveal-feather));
+    animation-name: theme-reveal-up-soft;
+    clip-path: none;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent calc(var(--theme-reveal-edge) - var(--theme-reveal-feather)),
+      #000000 var(--theme-reveal-edge)
+    );
+    mask-repeat: no-repeat;
+    mask-size: 100% 100%;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent calc(var(--theme-reveal-edge) - var(--theme-reveal-feather)),
+      #000000 var(--theme-reveal-edge)
+    );
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+  }
+}
+
+@keyframes theme-reveal-up-hard {
+  from { clip-path: inset(100% 0 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes theme-reveal-up-soft {
+  from { --theme-reveal-edge: calc(100% + var(--theme-reveal-feather)); }
+  to   { --theme-reveal-edge: 0px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root.theme-fading::view-transition-old(root),
+  :root.theme-fading::view-transition-new(root) {
+    animation-duration: 1ms !important;
+  }
+}

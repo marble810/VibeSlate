@@ -6,26 +6,26 @@ import {
   persistTheme,
   readStoredTheme,
 } from './theme';
-import type { ThemeId } from './theme';
+import type { ThemeSelection } from './theme';
 
-export type { ThemeId } from './theme';
+export type { ThemeSelection } from './theme';
 
 /** Whether the SSE connection is alive */
 export const connected = writable<boolean>(false);
 
 function createThemeStore() {
-  const store = writable<ThemeId>(readStoredTheme());
+  const store = writable<ThemeSelection>(readStoredTheme());
 
   return {
     subscribe: store.subscribe,
-    set(themeId: ThemeId) {
-      persistTheme(themeId);
-      store.set(themeId);
+    set(selection: ThemeSelection) {
+      persistTheme(selection);
+      store.set(selection);
     },
   };
 }
 
-/** Current theme */
+/** Current theme selection (family + palette) */
 export const theme = createThemeStore();
 
 function createCustomAccentStore() {
