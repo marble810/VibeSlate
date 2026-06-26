@@ -1,5 +1,4 @@
 <script lang="ts">
-  import App from "./../App.svelte";
   interface Props {
     label?: string;
     badge?: () => any;
@@ -25,7 +24,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: var(--space-lg);
+    padding: var(--card-padding, var(--space-lg));
     display: flex;
     flex-direction: column;
     gap: var(--card-gap);

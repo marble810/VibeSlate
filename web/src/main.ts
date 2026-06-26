@@ -2,9 +2,11 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 import { swStatus } from '$lib/stores';
 import { applyThemeToDocument, readStoredTheme } from '$lib/theme';
+import './themes/register-styles';
 import './app.scss';
 
-applyThemeToDocument(readStoredTheme());
+const initialSelection = readStoredTheme();
+applyThemeToDocument(initialSelection);
 
 // Dynamic viewport height polyfill for browsers without dvh support
 function setViewportHeight() {

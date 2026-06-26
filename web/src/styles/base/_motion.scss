@@ -1,0 +1,15 @@
+/* Motion tokens — global; not theme-colored */
+:root {
+  --theme-transition-duration: 2s;
+  --palette-transition-duration: 120ms;
+  --theme-transition-ease: ease;
+  --theme-reveal-feather: 50vh;
+  /* Runtime accent slot (JS sets --custom-accent on :root) */
+  --custom-accent: #8b5cf6;
+}
+
+@property --theme-reveal-edge {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 100%;
+}

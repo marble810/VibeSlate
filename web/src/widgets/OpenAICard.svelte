@@ -167,10 +167,6 @@
   {:else}
     <div class="empty auth-empty">
       <div class="auth-title">{authStateText()}</div>
-      <div class="auth-copy">
-        This Docker monitor creates its own Codex login session. Do not upload or copy local ~/.codex/auth.json.
-      </div>
-
       {#if login}
         <div class="device-code">
           <a class="device-url" href={login.verificationUrl} target="_blank" rel="noreferrer">
@@ -311,7 +307,6 @@
     letter-spacing: 0;
   }
 
-  .auth-copy,
   .auth-meta,
   .auth-error,
   .device-url {
@@ -320,7 +315,6 @@
     line-height: 1.5;
   }
 
-  .auth-copy,
   .auth-meta {
     color: var(--text-muted);
   }
